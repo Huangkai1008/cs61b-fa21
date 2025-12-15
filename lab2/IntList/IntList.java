@@ -50,10 +50,10 @@ public class IntList {
      * Method to create an IntList from an argument list.
      * You don't have to understand this code. We have it here
      * because it's convenient with testing. It's used like this:
-     *
+     * <p>
      * IntList myList = IntList.of(1, 2, 3, 4, 5);
      * will create an IntList 1 -> 2 -> 3 -> 4 -> 5 -> null.
-     *
+     * <p>
      * You can pass in any number of arguments to IntList.of and it will work:
      * IntList mySmallerList = IntList.of(1, 4, 9);
      */

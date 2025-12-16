@@ -5,7 +5,7 @@ import java.util.Observable;
 
 
 /** The state of a game of 2048.
- *  @author TODO: YOUR NAME HERE
+ *  @author huang.kai
  */
 public class Model extends Observable {
     /** Current contents of the board. */
@@ -137,7 +137,11 @@ public class Model extends Observable {
      *  Empty spaces are stored as null.
      * */
     public static boolean emptySpaceExists(Board b) {
-        // TODO: Fill in this function.
+        for (Tile tile: b) {
+            if (isEmptySpace(tile)) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -147,7 +151,11 @@ public class Model extends Observable {
      * given a Tile object t, we get its value with t.value().
      */
     public static boolean maxTileExists(Board b) {
-        // TODO: Fill in this function.
+        for (Tile tile: b) {
+            if (isMaxTile(tile)) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -158,10 +166,29 @@ public class Model extends Observable {
      * 2. There are two adjacent tiles with the same value.
      */
     public static boolean atLeastOneMoveExists(Board b) {
-        // TODO: Fill in this function.
+        if (emptySpaceExists(b)) {
+            return true;
+        }
+
+        var size = b.size();
+        for (int c = 0; c < size; c++) {
+            for (int r = 0; r < size; r++) {
+                var tile = b.tile(c, r);
+                var value = tile.value();
+
+                // compare with the tile to the right.
+                if (r + 1 < size && b.tile(c, r + 1).value() == value) {
+                    return true;
+                }
+
+                // compare with the tile to the bottom.
+                if (c + 1 < size && b.tile(c + 1, r).value() == value) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
-
 
     @Override
      /** Returns the model as a string, used for debugging. */
@@ -199,5 +226,13 @@ public class Model extends Observable {
     /** Returns hash code of Model’s string. */
     public int hashCode() {
         return toString().hashCode();
+    }
+
+    private static boolean isEmptySpace(Tile tile) {
+        return tile == null;
+    }
+
+    private static boolean isMaxTile(Tile tile) {
+        return !isEmptySpace(tile) && tile.value() == MAX_PIECE;
     }
 }

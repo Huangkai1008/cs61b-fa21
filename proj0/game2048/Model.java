@@ -1,7 +1,9 @@
 package game2048;
 
 import java.util.Formatter;
+import java.util.HashSet;
 import java.util.Observable;
+import java.util.Set;
 
 
 /** The state of a game of 2048.
@@ -110,15 +112,85 @@ public class Model extends Observable {
         boolean changed;
         changed = false;
 
-        // TODO: Modify this.board (and perhaps this.score) to account
+        // Modify this.board (and perhaps this.score) to account
         // for the tilt to the Side SIDE. If the board changed, set the
         // changed local variable to true.
+        board.setViewingPerspective(side);
+        var size = size();
+        Set<Tile> merged = new HashSet<>();
+        for (int c = 0; c < size; c++) {
+            for (int r = size - 2; r >= 0; r--) {
+                if (moveTileUp(c, r, merged)) {
+                    changed = true;
+                }
+            }
+        }
+        board.setViewingPerspective(Side.NORTH);
 
         checkGameOver();
         if (changed) {
             setChanged();
         }
         return changed;
+    }
+
+    /**
+     * Move the tile at (col, row) upward as far as possible.
+     * @param col The column of the tile.
+     * @param row The row of the tile.
+     * @param merged Set of tiles that have been merged in this tilt.
+     * @return True if the tile moved.
+     */
+    private boolean moveTileUp(int col, int row, Set<Tile> merged) {
+        var tile = board.tile(col, row);
+        if (isEmptySpace(tile)) {
+            return false;
+        }
+
+        var value = tile.value();
+        var targetRow = findTargetRow(col, row, value, merged);
+        if (targetRow == row) {
+            return false;
+        }
+
+        var isMerged = board.move(col, targetRow, tile);
+        if (isMerged) {
+            var mergedTile = board.tile(col, targetRow);
+            score += mergedTile.value();
+            merged.add(mergedTile);
+        }
+        return true;
+    }
+
+    /**
+     * Find the target row for a tile to move upward.
+     *
+     * @param col the column of the tile
+     * @param row the current row of the tile
+     * @param value the value of the tile
+     * @param merged set of tiles that have been merged
+     * @return the target row (may be the same as current row if blocked)
+     */
+    private int findTargetRow(int col, int row, int value, Set<Tile> merged) {
+        int targetRow = row;
+
+        var size = size();
+        for (int r = row + 1; r < size; r++) {
+            var above = board.tile(col, r);
+
+            if (isEmptySpace(above)) {
+                // 上面是空的，可以继续向上
+                targetRow = r;
+            } else if (above.value() == value && !merged.contains(above)) {
+                // 可以合并
+                return r;
+            } else {
+                // 被挡住了
+                return targetRow;
+            }
+        }
+
+        return targetRow;
     }
 
     /** Checks if the game is over and sets the gameOver variable
@@ -137,7 +209,7 @@ public class Model extends Observable {
      *  Empty spaces are stored as null.
      * */
     public static boolean emptySpaceExists(Board b) {
-        for (Tile tile: b) {
+        for (var tile: b) {
             if (isEmptySpace(tile)) {
                 return true;
             }
@@ -151,7 +223,7 @@ public class Model extends Observable {
      * given a Tile object t, we get its value with t.value().
      */
     public static boolean maxTileExists(Board b) {
-        for (Tile tile: b) {
+        for (var tile: b) {
             if (isMaxTile(tile)) {
                 return true;
             }

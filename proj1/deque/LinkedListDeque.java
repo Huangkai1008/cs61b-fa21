@@ -3,7 +3,8 @@ package deque;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class LinkedListDeque<T> implements Deque<T>, Iterable<T> {
+public class LinkedListDeque<T> extends AbstractDeque<T> {
+
     /**
      * Doubly linked node.
      */

@@ -1,5 +1,7 @@
 package deque;
 
+import java.util.Iterator;
+
 /**
  * Deque (usually pronounced like “deck”) is an irregular acronym of double-ended queue.
  * Double-ended queues are sequence containers with dynamic sizes that can be expanded or
@@ -49,4 +51,8 @@ public interface Deque<T> {
      * If no such item exists, returns null. Must not alter the deque!
      */
     public T get(int index);
+
+    public Iterator<T> iterator();
+
+    public boolean equals(Object o);
 }

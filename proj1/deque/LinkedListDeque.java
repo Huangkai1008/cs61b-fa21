@@ -170,11 +170,7 @@ public class LinkedListDeque<T> extends AbstractDeque<T> {
      * Iterator for `LinkedListDeque`.
      */
     private class LinkedListDequeIterator implements Iterator<T> {
-        private Node<T> current;
-
-        public LinkedListDequeIterator() {
-            current = head;
-        }
+        private Node<T> current = head;
 
         @Override
         public boolean hasNext() {

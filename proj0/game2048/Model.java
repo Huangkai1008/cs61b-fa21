@@ -179,13 +179,13 @@ public class Model extends Observable {
             var above = board.tile(col, r);
 
             if (isEmptySpace(above)) {
-                // 上面是空的，可以继续向上
+                // The space above is empty, can continue moving up.
                 targetRow = r;
             } else if (above.value() == value && !merged.contains(above)) {
-                // 可以合并
+                // It can be merged with the tile above.
                 return r;
             } else {
-                // 被挡住了
+                // Blocked by a tile with a different value.
                 return targetRow;
             }
         }

@@ -67,11 +67,6 @@ public class ArrayDeque<T> extends AbstractDeque<T> {
     }
 
     @Override
-    public boolean isEmpty() {
-        return front == rear;
-    }
-
-    @Override
     public int size() {
         return size;
     }

@@ -69,11 +69,6 @@ public class LinkedListDeque<T> extends AbstractDeque<T> {
     }
 
     @Override
-    public boolean isEmpty() {
-        return size == 0;
-    }
-
-    @Override
     public int size() {
         return size;
     }

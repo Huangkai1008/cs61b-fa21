@@ -22,7 +22,8 @@ public class GuitarString {
         this(frequency, new LinkedListDeque<>());
     }
 
-    public GuitarString(double frequency, Deque<Double> deque) {
+    // Private constructor for internal use and testing
+    private GuitarString(double frequency, Deque<Double> deque) {
         buffer = deque;
         int capacity = Math.toIntExact(Math.round(SR / frequency));
         for (int i = 0; i < capacity; i++) {

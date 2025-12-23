@@ -3,7 +3,7 @@ package deque;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class LinkedListDeque<T> extends AbstractDeque<T> {
+public class LinkedListDeque<T> implements Deque<T>, Iterable<T> {
 
     /**
      * Doubly linked node.
@@ -178,5 +178,36 @@ public class LinkedListDeque<T> extends AbstractDeque<T> {
             current = current.next;
             return item;
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (!(obj instanceof Deque)) {
+            return false;
+        }
+
+        Deque<?> that = (Deque<?>) obj;
+
+        if (this.size() != that.size()) {
+            return false;
+        }
+
+        // Check if that is also Iterable
+        if (!(obj instanceof Iterable)) {
+            return false;
+        }
+
+        Iterator<?> thatIter = ((Iterable<?>) obj).iterator();
+
+        for (T t : this) {
+            if (!Objects.equals(t, thatIter.next())) {
+                return false;
+            }
+        }
+        return true;
     }
 }

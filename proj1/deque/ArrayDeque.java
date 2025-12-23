@@ -1,8 +1,9 @@
 package deque;
 
 import java.util.Iterator;
+import java.util.Objects;
 
-public class ArrayDeque<T> extends AbstractDeque<T> {
+public class ArrayDeque<T> implements Deque<T>, Iterable<T> {
     /**
      * The starting size of array should be 8.
      */
@@ -177,5 +178,36 @@ public class ArrayDeque<T> extends AbstractDeque<T> {
         items = newItems;
         front = 0;
         rear = size;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (!(obj instanceof Deque)) {
+            return false;
+        }
+
+        Deque<?> that = (Deque<?>) obj;
+
+        if (this.size() != that.size()) {
+            return false;
+        }
+
+        // Check if that is also Iterable
+        if (!(obj instanceof Iterable)) {
+            return false;
+        }
+
+        Iterator<?> thatIter = ((Iterable<?>) obj).iterator();
+
+        for (T t : this) {
+            if (!Objects.equals(t, thatIter.next())) {
+                return false;
+            }
+        }
+        return true;
     }
 }

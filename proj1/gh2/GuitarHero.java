@@ -12,6 +12,8 @@ public class GuitarHero {
     private static final String[] NOTE_NAMES = {
         "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
     };
+    private static final int FRAMES_PER_UPDATE = 1000;
+
     public static void main(String[] args) {
         /* create an array of 37 guitar strings */
         GuitarString[] guitarStrings = new GuitarString[NUM_STRINGS];
@@ -27,7 +29,6 @@ public class GuitarHero {
         StdDraw.enableDoubleBuffering();
         
         int frameCounter = 0;
-        final int FRAMES_PER_UPDATE = 1000; // Update display every 1000 frames (~44Hz)
 
         while (true) {
             /* check if the user has typed a key; if so, process it */

@@ -129,8 +129,8 @@ public class LinkedListDeque<T> extends AbstractDeque<T> {
     }
 
     public T getRecursive(int index) {
-       var node = getNode(index);
-       return node == null ? null : node.item;
+        var node = getNode(index);
+        return node == null ? null : node.item;
     }
 
     /**

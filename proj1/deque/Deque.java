@@ -1,7 +1,6 @@
 package deque;
 
 import java.util.Iterator;
-import java.util.Objects;
 
 /**
  * Deque (usually pronounced like “deck”) is an irregular acronym of double-ended queue.
@@ -54,6 +53,4 @@ public interface Deque<T> {
      * If no such item exists, returns null. Must not alter the deque!
      */
     T get(int index);
-
-    Iterator<T> iterator();
 }

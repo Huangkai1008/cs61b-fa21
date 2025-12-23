@@ -1,7 +1,7 @@
 package gh2;
 
- import deque.Deque;
- import deque.LinkedListDeque;
+import deque.Deque;
+import deque.LinkedListDeque;
 
 public class GuitarString {
     /** Constants. Do not change. In case you're curious, the keyword final

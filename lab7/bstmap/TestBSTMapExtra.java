@@ -2,6 +2,8 @@ package bstmap;
 
 import java.util.Set;
 import java.util.HashSet;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import static org.junit.Assert.*;
 import org.junit.Test;
 
@@ -111,6 +113,105 @@ public class TestBSTMapExtra {
         assertTrue(((Integer) noChild.remove('Z')).equals(15));
         assertEquals(0, noChild.size());
         assertEquals(null, noChild.get('Z'));
+    }
+
+    /* Test for printInOrder method
+     * Verifies that printInOrder prints nodes in sorted order
+     */
+    @Test
+    public void testPrintInOrder() {
+        BSTMap<Integer, String> b = new BSTMap<>();
+        
+        // Test empty tree
+        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(outContent));
+        
+        b.printInOrder();
+        assertEquals("", outContent.toString());
+        
+        // Test single node
+        b.put(5, "five");
+        outContent.reset();
+        b.printInOrder();
+        assertTrue(outContent.toString().contains("key=5"));
+        assertTrue(outContent.toString().contains("value=five"));
+        
+        // Test multiple nodes - should print in sorted order
+        b.put(3, "three");
+        b.put(7, "seven");
+        b.put(1, "one");
+        b.put(9, "nine");
+        outContent.reset();
+        b.printInOrder();
+        
+        String output = outContent.toString();
+        // Verify all nodes are printed
+        assertTrue(output.contains("key=1"));
+        assertTrue(output.contains("key=3"));
+        assertTrue(output.contains("key=5"));
+        assertTrue(output.contains("key=7"));
+        assertTrue(output.contains("key=9"));
+        
+        // Verify they appear in sorted order
+        int pos1 = output.indexOf("key=1");
+        int pos3 = output.indexOf("key=3");
+        int pos5 = output.indexOf("key=5");
+        int pos7 = output.indexOf("key=7");
+        int pos9 = output.indexOf("key=9");
+        
+        assertTrue(pos1 < pos3);
+        assertTrue(pos3 < pos5);
+        assertTrue(pos5 < pos7);
+        assertTrue(pos7 < pos9);
+        
+        // Restore original System.out
+        System.setOut(originalOut);
+    }
+
+    /* Test for printInOrder with String keys
+     * Verifies that printInOrder works with different key types
+     */
+    @Test
+    public void testPrintInOrderWithStrings() {
+        BSTMap<String, Integer> b = new BSTMap<>();
+        
+        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(outContent));
+        
+        // Add nodes in non-sorted order
+        b.put("dog", 1);
+        b.put("cat", 2);
+        b.put("elephant", 3);
+        b.put("ant", 4);
+        b.put("zebra", 5);
+        
+        b.printInOrder();
+        
+        String output = outContent.toString();
+        
+        // Verify all nodes are printed
+        assertTrue(output.contains("key=ant"));
+        assertTrue(output.contains("key=cat"));
+        assertTrue(output.contains("key=dog"));
+        assertTrue(output.contains("key=elephant"));
+        assertTrue(output.contains("key=zebra"));
+        
+        // Verify they appear in alphabetical order
+        int posAnt = output.indexOf("key=ant");
+        int posCat = output.indexOf("key=cat");
+        int posDog = output.indexOf("key=dog");
+        int posElephant = output.indexOf("key=elephant");
+        int posZebra = output.indexOf("key=zebra");
+        
+        assertTrue(posAnt < posCat);
+        assertTrue(posCat < posDog);
+        assertTrue(posDog < posElephant);
+        assertTrue(posElephant < posZebra);
+        
+        // Restore original System.out
+        System.setOut(originalOut);
     }
 
 }

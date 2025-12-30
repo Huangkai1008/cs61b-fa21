@@ -2,8 +2,6 @@ package bstmap;
 
 
 import java.util.*;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
 
@@ -14,28 +12,24 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
         /**
          * The key of node.
          */
-        @Nonnull
         private K key;
 
         /**
          * The value of node.
          */
-        @Nonnull
         private V value;
 
         /**
          * The left child of the node.
          */
-        @Nullable
         private BSTNode<K, V> left;
 
         /**
          * The right child of the node.
          */
-        @Nullable
         private BSTNode<K, V> right;
 
-        public BSTNode(@Nonnull K key, @Nonnull V value) {
+        public BSTNode(K key, V value) {
             this.key = key;
             this.value = value;
         }
@@ -49,7 +43,6 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
     /**
      * The root node of the tree.
      */
-    @Nullable
     private BSTNode<K, V> root;
 
     public BSTMap() {
@@ -139,7 +132,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
             return node.key;
         }
 
-        private void pushLeft(@Nullable BSTNode<K, V> node) {
+        private void pushLeft(BSTNode<K, V> node) {
             while (node != null) {
                 stack.push(node);
                 node = node.left;
@@ -151,7 +144,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
         printInOrder(root);
     }
 
-    private void printInOrder(@Nullable BSTNode<K, V> node) {
+    private void printInOrder(BSTNode<K, V> node) {
         if (node == null) {
             return;
         }
@@ -166,7 +159,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
      *
      * @return The root of the binary search tree after inserting a new node.
      */
-    private @Nonnull BSTNode<K, V> put(@Nullable BSTNode<K, V> node, K key, V value) {
+    private BSTNode<K, V> put(BSTNode<K, V> node, K key, V value) {
         if (node == null) {
             return new BSTNode<>(key, value);
         }
@@ -182,7 +175,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
     }
 
 
-    private @Nullable V get(@Nullable BSTNode<K, V> node, K key) {
+    private V get(BSTNode<K, V> node, K key) {
         if (node == null) {
             return null;
         }
@@ -197,7 +190,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
         }
     }
 
-    private int size(@Nullable BSTNode<K, V> node) {
+    private int size(BSTNode<K, V> node) {
         if (node == null) {
             return 0;
         }
@@ -205,7 +198,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
         return size(node.left) + size(node.right) + 1;
     }
 
-    private boolean containsKey(@Nullable BSTNode<K, V> node, K key) {
+    private boolean containsKey(BSTNode<K, V> node, K key) {
         if (node == null) {
             return false;
         }
@@ -223,7 +216,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
     /**
      * @return The largest node of the binary search tree is rooted.
      */
-    private @Nullable BSTNode<K, V> max(@Nullable BSTNode<K, V> node) {
+    private BSTNode<K, V> max(BSTNode<K, V> node) {
         if (node == null) {
             return null;
         }
@@ -238,7 +231,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
     /**
      * @return The smallest node of the binary search tree is rooted.
      */
-    private @Nullable BSTNode<K, V> min(@Nullable BSTNode<K, V> node) {
+    private BSTNode<K, V> min(BSTNode<K, V> node) {
         if (node == null) {
             return null;
         }
@@ -255,7 +248,7 @@ public class BSTMap<K extends Comparable<K>, V> implements Map61B<K, V> {
      *
      * @return The root of the BST after removal.
      */
-    private @Nullable BSTNode<K, V> remove(@Nullable BSTNode<K, V> node, @Nonnull K key) {
+    private BSTNode<K, V> remove(BSTNode<K, V> node, K key) {
         if (node == null) {
             return null;
         }

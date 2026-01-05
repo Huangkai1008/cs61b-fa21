@@ -23,8 +23,9 @@ public class Main {
                 break;
             }
             case "add": {
-                validArgs(args, 1);
-                // TODO: implement me.
+                validArgs(args, 2);
+                String filename = args[1];
+                Repository.add(filename);
                 break;
             }
             default:

@@ -1,6 +1,7 @@
 package gitlet;
 
 import java.io.File;
+
 import static gitlet.Utils.*;
 
 /** Represents a gitlet repository.
@@ -18,6 +19,7 @@ public class Repository {
     public static final File REFS_DIR = join(GITLET_DIR, "refs");
     public static final File HEADS_DIR = join(REFS_DIR, "heads");
     public static final File HEAD_FILE = join(GITLET_DIR, "HEAD");
+    public static final File STAGE_FILE = join(GITLET_DIR, "stage");
 
     /** The default branch of gitlet */
     public static final String DEFAULT_BRANCH = "master";
@@ -45,7 +47,31 @@ public class Repository {
         }
 
         setupDirectories();
+        setupStagingArea();
         createInitialCommit();
+    }
+
+    /**
+     * Adds a copy of the file as it currently exists to the staging area (see the description of the commit command).
+     * <p>
+     * For this reason, adding a file is also called staging the file for addition.
+     * Staging an already-staged file overwrites the previous entry in the staging area with the new contents.
+     * The staging area should be somewhere in .gitlet.
+     * <p>
+     * If the current working version of the file is identical to the version in the current commit,
+     * do not stage it to be added, and remove it from the staging area if it is already there
+     * (as can happen when a file is changed, added, and then changed back to it’s original version).
+     * The file will no longer be staged for removal (see gitlet rm), if it was at the time of the command.
+     */
+    public static void add(String filename) {
+        File file = Utils.join(CWD, filename);
+        if (!file.exists()) {
+            throw error("File does not exist.");
+        }
+
+        Stage stage = readStage();
+        Blob blob = new Blob(file);
+        stage.addFile(filename, blob.getBlobID());
     }
 
     /**
@@ -93,6 +119,11 @@ public class Repository {
         }
     }
 
+    private static void setupStagingArea() {
+        Stage stage = new Stage();
+        writeStage(stage);
+    }
+
 
     private String getCurrentBranch() {
         return Utils.readContentsAsString(HEAD_FILE);
@@ -113,5 +144,13 @@ public class Repository {
         File branch = join(HEADS_DIR, DEFAULT_BRANCH);
         Utils.writeContents(branch, initCommit.getCommitID());
         setCurrentBranch(DEFAULT_BRANCH);
+    }
+
+    private static Stage readStage() {
+        return readObject(STAGE_FILE, Stage.class);
+    }
+
+    private static void writeStage(Stage stage) {
+        writeObject(STAGE_FILE, stage);
     }
 }

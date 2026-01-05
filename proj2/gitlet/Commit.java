@@ -1,26 +1,67 @@
 package gitlet;
 
-// TODO: any imports you need here
-
-import java.util.Date; // TODO: You'll likely use this in this class
+import java.io.Serializable;
+import java.util.*;
 
 /** Represents a gitlet commit object.
- *  TODO: It's a good idea to give a description here of what else this Class
- *  does at a high level.
  *
- *  @author TODO
+ *  @author huang.kai
+ *
  */
-public class Commit {
+public class Commit implements Serializable {
     /**
-     * TODO: add instance variables here.
-     *
-     * List all instance variables of the Commit class here with a useful
-     * comment above them describing what that variable represents and how that
-     * variable is used. We've provided one example for `message`.
+     * The message of the commit.
      */
+    private final String message;
 
-    /** The message of this Commit. */
-    private String message;
+    /**
+     * The parents commit reference.
+     */
+    private final List<String> parents;
 
-    /* TODO: fill in the rest of this class. */
+    /**
+     * The date of the commit.
+     */
+    private final Date timestamp;
+
+    /**
+     * The blobs of the commit.
+     * <p>
+     * Maps filename to blob ID.
+     */
+    private final Map<String, String> blobs;
+
+    /**
+     * The ID of the commit.
+     */
+    private final String commitID;
+
+    public Commit() {
+        this.message = "initial commit";
+        this.parents = new LinkedList<>();
+        this.timestamp = new Date(0);
+        this.blobs = new TreeMap<>();
+        this.commitID = generateID();
+    }
+
+    public Commit(String message, List<String> parents, Map<String, String> blobs) {
+        this.message = message;
+        this.parents = parents;
+        this.timestamp = new Date();
+        this.blobs = blobs;
+        this.commitID = generateID();
+    }
+
+    public String getCommitID() {
+        return commitID;
+    }
+
+    private String generateID() {
+        return Utils.sha1((Object) Utils.serialize(this));
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Commit(message=%s, commitID=%s)", message, commitID);
+    }
 }

@@ -1,7 +1,9 @@
 package gitlet;
 
+import static gitlet.Utils.error;
+
 /** Driver class for Gitlet, a subset of the Git version-control system.
- *  @author TODO
+ *  @author huang.kai
  */
 public class Main {
 
@@ -9,16 +11,30 @@ public class Main {
      *  <COMMAND> <OPERAND1> <OPERAND2> ... 
      */
     public static void main(String[] args) {
-        // TODO: what if args is empty?
+        if (args.length == 0) {
+            throw error("Please enter a command.");
+        }
+
         String firstArg = args[0];
         switch(firstArg) {
-            case "init":
-                // TODO: handle the `init` command
+            case "init": {
+                validArgs(args, 1);
+                Repository.init();
                 break;
-            case "add":
-                // TODO: handle the `add [filename]` command
+            }
+            case "add": {
+                validArgs(args, 1);
+                // TODO: implement me.
                 break;
-            // TODO: FILL THE REST IN
+            }
+            default:
+                throw error("No command with that name exists.");
+        }
+    }
+
+    private static void validArgs(String[] args, int length) {
+        if (args.length != length) {
+            throw error("Incorrect operands.");
         }
     }
 }

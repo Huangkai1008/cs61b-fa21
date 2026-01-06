@@ -44,12 +44,24 @@ public class Commit implements Serializable {
         this.commitID = generateID();
     }
 
+    public Commit(String message, String parent, Map<String, String> blobs) {
+        this.message = message;
+        this.parents = new LinkedList<>(List.of(parent));
+        this.timestamp = new Date();
+        this.blobs = blobs;
+        this.commitID = generateID();
+    }
+
     public Commit(String message, List<String> parents, Map<String, String> blobs) {
         this.message = message;
         this.parents = parents;
         this.timestamp = new Date();
         this.blobs = blobs;
         this.commitID = generateID();
+    }
+
+    public Map<String, String> getBlobs() {
+        return blobs;
     }
 
     public String getCommitID() {

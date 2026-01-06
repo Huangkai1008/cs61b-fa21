@@ -1,6 +1,8 @@
 package gitlet;
 
 import java.io.File;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static gitlet.Utils.*;
 
@@ -72,6 +74,56 @@ public class Repository {
         Stage stage = readStage();
         Blob blob = new Blob(file);
         stage.addFile(filename, blob.getBlobID());
+        writeStage(stage);
+    }
+
+
+    /**
+     * Saves a snapshot of tracked files in the current commit and staging area.
+     * Creates a new commit that tracks the saved files.
+     *
+     * <p>By default, each commit's snapshot will be exactly the same as its parent's.
+     * A commit will only update files that have been staged for addition.
+     * Files staged for removal will be untracked in the new commit.
+     *
+     * <p>Key behaviors:
+     * <ul>
+     *   <li>The staging area is cleared after a commit.</li>
+     *   <li>The commit command never modifies files in the working directory
+     *       (except .gitlet directory).</li>
+     *   <li>Changes made to files after staging are ignored by commit.</li>
+     *   <li>The new commit becomes the "current commit" and HEAD points to it.</li>
+     *   <li>The previous HEAD commit becomes this commit's parent.</li>
+     *   <li>Each commit contains the date and time it was made.</li>
+     *   <li>Each commit is identified by its SHA-1 id, which includes file (blob)
+     *       references, parent reference, log message, and commit time.</li>
+     * </ul>
+     *
+     * @param message The log message describing changes in this commit.
+     */
+    public static void commit(String message) {
+        Stage stage = readStage();
+        if (stage.isClean()) {
+            throw error("No changes added to the commit.");
+        }
+
+        Commit parentCommit = getCurrentCommit();
+        String parentCommitID = parentCommit.getCommitID();
+        Map<String, String> newBlobs = new TreeMap<>(parentCommit.getBlobs());
+        newBlobs.putAll(stage.getAdded());
+        for (String filename: stage.getRemoved()) {
+            newBlobs.remove(filename);
+        }
+
+        Commit commit = new Commit(message, parentCommitID, newBlobs);
+        saveCommit(commit);
+
+        String currentBranch = getCurrentBranch();
+        File branchFile = join(HEADS_DIR, currentBranch);
+        writeContents(branchFile, commit.getCommitID());
+
+        stage.clear();
+        writeStage(stage);
     }
 
     /**
@@ -125,7 +177,7 @@ public class Repository {
     }
 
 
-    private String getCurrentBranch() {
+    private static String getCurrentBranch() {
         return Utils.readContentsAsString(HEAD_FILE);
     }
 
@@ -133,14 +185,21 @@ public class Repository {
         Utils.writeContents(HEAD_FILE, branchName);
     }
 
-    private String getCurrentCommitID() {
+    private static String getCurrentCommitID() {
         String currentBranch = getCurrentBranch();
         File branchFile = join(HEADS_DIR, currentBranch);
         return Utils.readContentsAsString(branchFile);
     }
 
+    private static Commit getCurrentCommit() {
+        String commitID = getCurrentCommitID();
+        File commitFile = Utils.join(OBJECTS_DIR, commitID);
+        return readObject(commitFile, Commit.class);
+    }
+
     private static void createInitialCommit() {
         Commit initCommit = new Commit();
+        saveCommit(initCommit);
         File branch = join(HEADS_DIR, DEFAULT_BRANCH);
         Utils.writeContents(branch, initCommit.getCommitID());
         setCurrentBranch(DEFAULT_BRANCH);
@@ -152,5 +211,10 @@ public class Repository {
 
     private static void writeStage(Stage stage) {
         writeObject(STAGE_FILE, stage);
+    }
+
+    private static void saveCommit(Commit commit) {
+        File commitFile = Utils.join(OBJECTS_DIR, commit.getCommitID());
+        writeObject(commitFile, commit);
     }
 }

@@ -28,6 +28,15 @@ public class Main {
                 Repository.add(filename);
                 break;
             }
+            case "commit": {
+                validArgs(args, 2);
+                String message = args[1];
+                if (message == null || message.isEmpty()) {
+                    throw error("Please enter a commit message.");
+                }
+                Repository.commit(message);
+                break;
+            }
             default:
                 throw error("No command with that name exists.");
         }

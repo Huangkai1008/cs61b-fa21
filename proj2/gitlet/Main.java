@@ -68,6 +68,23 @@ public class Main {
                 Repository.log();
                 break;
             }
+
+            case "global-log": {
+                validArgs(args, 1);
+                Repository.globalLog();
+                break;
+            }
+
+            case "find": {
+                validArgs(args, 2);
+                String message = args[1];
+                if (message == null || message.isEmpty()) {
+                    throw error("Please enter a commit message.");
+                }
+                Repository.find(message);
+                break;
+            }
+
             default:
                 throw error("No command with that name exists.");
         }

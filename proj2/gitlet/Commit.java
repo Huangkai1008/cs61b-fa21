@@ -73,6 +73,10 @@ public class Commit implements Serializable {
         this.commitID = generateID();
     }
 
+    public String getMessage() {
+        return message;
+    }
+
     public Map<String, String> getBlobs() {
         return blobs;
     }

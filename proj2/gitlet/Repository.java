@@ -251,6 +251,40 @@ public class Repository {
     }
 
     /**
+     * Like log, except displays information about all commits ever made. The order of the commits does not matter.
+     */
+    public static void globalLog() {
+        List<String> allCommitIDs = plainFilenamesIn(COMMIT_DIR);
+        if (allCommitIDs == null) {
+            return;
+        }
+
+        for (String commitID: allCommitIDs) {
+            Commit commit = getCommitFromID(commitID);
+            System.out.print(commit.getLogString());
+            System.out.println();
+        }
+    }
+
+    /**
+     * Prints out the ids of all commits that have the given commit message, one per line.
+     * If there are multiple such commits, it prints the ids out on separate lines.
+     */
+    public static void find(String message) {
+        List<String> allCommitIDs = plainFilenamesIn(COMMIT_DIR);
+        if (allCommitIDs == null || allCommitIDs.isEmpty()) {
+            throw error("Found no commit with that message.");
+        }
+
+        for (String commitID: allCommitIDs) {
+            Commit commit = getCommitFromID(commitID);
+            if (commit.getMessage().contains(message)) {
+                System.out.println(commitID);
+            }
+        }
+    }
+
+    /**
      * @return whether the repository is initialized.
      */
     private static boolean isInitialized() {

@@ -231,6 +231,24 @@ public class Repository {
     }
 
     /**
+     * Starting at the current head commit, display information about each commit
+     * backwards along the commit tree until the initial commit, following the first parent commit links,
+     * ignoring any second parents found in merge commits.
+     * (In regular Git, this is what you get with git log --first-parent).
+     * This set of commit nodes is called the commit’s history.
+     * For every node in this history, the information it should display is the commit id,
+     * the time the commit was made, and the commit message.
+     */
+    public static void log() {
+        for (Commit commit = getCurrentCommit();
+             commit != null;
+             commit = getParentCommit(commit)) {
+            System.out.print(commit.getLogString());
+            System.out.println();
+        }
+    }
+
+    /**
      * @return whether the repository is initialized.
      */
     private static boolean isInitialized() {
@@ -364,5 +382,10 @@ public class Repository {
         }
 
         return false;
+    }
+
+    private static Commit getParentCommit(Commit commit) {
+        String parentId = commit.getParent();
+        return parentId != null ? getCommitFromID(parentId) : null;
     }
 }

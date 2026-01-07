@@ -33,6 +33,7 @@ public class Main {
                 Repository.add(filename);
                 break;
             }
+
             case "commit": {
                 validArgs(args, 2);
                 String message = args[1];
@@ -59,6 +60,12 @@ public class Main {
                 } else {
                     throw error("Incorrect operands.");
                 }
+                break;
+            }
+
+            case "log": {
+                validArgs(args, 1);
+                Repository.log();
                 break;
             }
             default:

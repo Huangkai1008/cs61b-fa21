@@ -1,7 +1,6 @@
 package gitlet;
 
-import java.util.Arrays;
-
+import static gitlet.Utils.abort;
 import static gitlet.Utils.error;
 
 /** Driver class for Gitlet, a subset of the Git version-control system.
@@ -14,7 +13,7 @@ public class Main {
      */
     public static void main(String[] args) {
         if (args.length == 0) {
-            throw error("Please enter a command.");
+            abort("Please enter a command.");
         }
 
         String cmd = args[0];
@@ -34,11 +33,18 @@ public class Main {
                 break;
             }
 
+            case "rm": {
+                validArgs(args, 2);
+                String filename = args[1];
+                Repository.rm(filename);
+                break;
+            }
+
             case "commit": {
                 validArgs(args, 2);
                 String message = args[1];
                 if (message == null || message.isEmpty()) {
-                    throw error("Please enter a commit message.");
+                    abort("Please enter a commit message.");
                 }
 
                 Repository.commit(message);
@@ -58,7 +64,7 @@ public class Main {
                     String filename = args[3];
                     Repository.checkout(commitID, filename);
                 } else {
-                    throw error("Incorrect operands.");
+                    abort("Incorrect operands.");
                 }
                 break;
             }
@@ -79,14 +85,40 @@ public class Main {
                 validArgs(args, 2);
                 String message = args[1];
                 if (message == null || message.isEmpty()) {
-                    throw error("Please enter a commit message.");
+                    abort("Please enter a commit message.");
                 }
                 Repository.find(message);
                 break;
             }
 
+            case "status": {
+                validArgs(args, 1);
+                Repository.status();
+                break;
+            }
+
+            case "branch": {
+                validArgs(args, 2);
+                String branchName = args[1];
+                if (branchName == null || branchName.isEmpty()) {
+                    abort("Please enter a branch name.");
+                }
+                Repository.branch(branchName);
+                break;
+            }
+
+            case "rm-branch": {
+                validArgs(args, 2);
+                String branchName = args[1];
+                if (branchName == null || branchName.isEmpty()) {
+                    abort("Please enter a branch name.");
+                }
+                Repository.rmBranch(branchName);
+                break;
+            }
+
             default:
-                throw error("No command with that name exists.");
+                abort("No command with that name exists.");
         }
     }
 
@@ -96,6 +128,6 @@ public class Main {
                 return;
             }
         }
-        throw error("Incorrect operands.");
+        abort("Incorrect operands.");
     }
 }

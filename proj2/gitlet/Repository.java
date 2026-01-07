@@ -1,10 +1,7 @@
 package gitlet;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 import static gitlet.Utils.*;
 
@@ -49,7 +46,7 @@ public class Repository {
      */
     public static void init() {
         if (isInitialized()) {
-            throw error("A Gitlet version-control system already exists in the current directory.");
+            abort("A Gitlet version-control system already exists in the current directory.");
         }
 
         setupDirectories();
@@ -59,7 +56,7 @@ public class Repository {
 
     public static void ensureInitialized() {
         if (!isInitialized()) {
-            throw error("Not in an initialized Gitlet directory.");
+            abort("Not in an initialized Gitlet directory.");
         }
     }
 
@@ -79,15 +76,52 @@ public class Repository {
     public static void add(String filename) {
         File file = Utils.join(CWD, filename);
         if (!file.exists()) {
-            throw error("File does not exist.");
+            abort("File does not exist.");
         }
 
         Stage stage = readStage();
         Blob blob = new Blob(file);
+        Commit currentCommit = getCurrentCommit();
+        String existBlobID = currentCommit.getBlobs().get(filename);
+        // Current working version of the file is identical to the version in the current commit.
+        if (existBlobID != null && existBlobID.equals(blob.getBlobID())) {
+            stage.getAdded().remove(filename);
+            stage.getRemoved().remove(filename);
+            writeStage(stage);
+            return;
+        }
 
         File blobFile = join(BLOB_DIR, blob.getBlobID());
         writeObject(blobFile, blob);
         stage.addFile(filename, blob.getBlobID());
+        writeStage(stage);
+    }
+
+    /**
+     * Unstage the file if it is currently staged for addition.
+     * <p>
+     * If the file is tracked in the current commit,
+     * stage it for removal and remove the file from the working directory
+     * if the user has not already done so (do not remove it unless it is tracked in the current commit).
+     */
+    public static void rm(String filename) {
+        Stage stage = readStage();
+        Commit currentCommit = getCurrentCommit();
+        boolean staged = stage.getAdded().containsKey(filename);
+        boolean tracked = currentCommit.getBlobs().containsKey(filename);
+        if (!staged && !tracked) {
+            abort("No reason to remove the file.");
+        }
+
+        if (staged) {
+            stage.unstageFile(filename);
+        }
+
+        if (tracked) {
+            stage.stageForRemoval(filename);
+            Utils.restrictedDelete(Utils.join(CWD, filename));
+        }
+
         writeStage(stage);
     }
 
@@ -118,7 +152,7 @@ public class Repository {
     public static void commit(String message) {
         Stage stage = readStage();
         if (stage.isClean()) {
-            throw error("No changes added to the commit.");
+            abort("No changes added to the commit.");
         }
 
         Commit parentCommit = getCurrentCommit();
@@ -147,13 +181,26 @@ public class Repository {
      * This command does NOT immediately switch to the newly created branch (just as in real Git).
      * Before you ever call branch, your code should be running with a default branch called “master”.
      */
-    public void branch(String branchName) {
+    public static void branch(String branchName) {
         File branch = join(HEADS_DIR, branchName);
         if (branch.exists()) {
-            throw error("A branch with that name already exists.");
+            abort("A branch with that name already exists.");
         }
 
         Utils.writeContents(branch, getCurrentCommitID());
+    }
+
+    public static void rmBranch(String branchName) {
+        File branch = join(HEADS_DIR, branchName);
+        if (!branch.exists()) {
+            abort("A branch with that name does not exist.");
+        }
+
+        if (branchName.equals(getCurrentBranch())) {
+            abort("Cannot remove the current branch.");
+        }
+
+        Utils.restrictedDelete(branch);
     }
 
     /**
@@ -201,7 +248,7 @@ public class Repository {
         Map<String, String> blobs = commit.getBlobs();
         String blobID = blobs.get(filename);
         if (blobID == null) {
-            throw error("File does not exist in that commit.");
+            abort("File does not exist in that commit.");
         }
 
         File blobFile = join(BLOB_DIR, blobID);
@@ -215,16 +262,16 @@ public class Repository {
     public static void checkoutBranch(String branchName) {
         File branchFile = Utils.join(REFS_DIR, branchName);
         if (!branchFile.exists()) {
-            throw error("No such branch exists.");
+            abort("No such branch exists.");
         }
 
         if (getCurrentBranch().equals(branchName)) {
-            throw error("No need to checkout the current branch.");
+            abort("No need to checkout the current branch.");
         }
 
         Commit targetCommit = getCommitFromID(Utils.readContentsAsString(branchFile));
         if (hasUntrackedFiles(targetCommit)) {
-            throw error("There is an untracked file in the way; delete it, or add and commit it first.");
+            abort("There is an untracked file in the way; delete it, or add and commit it first.");
         }
 
         setCurrentBranch(branchName);
@@ -267,13 +314,45 @@ public class Repository {
     }
 
     /**
+     * Displays what branches currently exist, and marks the current branch with a *.
+     * <p>
+     * Also displays what files have been staged for addition or removal.
+     */
+    public static void status() {
+        // Display branches
+        System.out.println("=== Branches ===");
+        logBranches();
+        System.out.println();
+
+        // Display staged files
+        System.out.println("=== Staged Files ===");
+        logStagedFiles();
+        System.out.println();
+
+        // Display removed files
+        System.out.println("=== Removed Files ===");
+        logRemovedFiles();
+        System.out.println();
+
+        // Display modifications not staged for commit
+        System.out.println("=== Modifications Not Staged For Commit ===");
+        logNotStageForCommit();
+        System.out.println();
+
+        // Display untracked files
+        System.out.println("=== Untracked Files ===");
+        logUntrackedFiles();
+        System.out.println();
+    }
+
+    /**
      * Prints out the ids of all commits that have the given commit message, one per line.
      * If there are multiple such commits, it prints the ids out on separate lines.
      */
     public static void find(String message) {
         List<String> allCommitIDs = plainFilenamesIn(COMMIT_DIR);
         if (allCommitIDs == null || allCommitIDs.isEmpty()) {
-            throw error("Found no commit with that message.");
+            abort("Found no commit with that message.");
         }
 
         for (String commitID: allCommitIDs) {
@@ -293,22 +372,22 @@ public class Repository {
 
     private static void setupDirectories() {
         if (!GITLET_DIR.mkdirs()) {
-            throw error("Failed to create .gitlet directory.");
+            abort("Failed to create .gitlet directory.");
         }
         if (!OBJECTS_DIR.mkdirs()) {
-            throw error("Failed to create objects directory.");
+            abort("Failed to create objects directory.");
         }
         if (!COMMIT_DIR.mkdirs()) {
-            throw error("Failed to create commits directory.");
+            abort("Failed to create commits directory.");
         }
         if (!BLOB_DIR.mkdirs()) {
-            throw error("Failed to create blobs directory.");
+            abort("Failed to create blobs directory.");
         }
         if (!REFS_DIR.mkdirs()) {
-            throw error("Failed to create refs directory.");
+            abort("Failed to create refs directory.");
         }
         if (!HEADS_DIR.mkdirs()) {
-            throw error("Failed to create heads directory.");
+            abort("Failed to create heads directory.");
         }
     }
 
@@ -343,7 +422,7 @@ public class Repository {
         String fullCommitID = resolveCommitID(commitID);
         File commitFile = Utils.join(COMMIT_DIR, fullCommitID);
         if (!commitFile.exists()) {
-            throw error("No commit with that id exists.");
+            abort("No commit with that id exists.");
         }
         return readObject(commitFile, Commit.class);
     }
@@ -358,7 +437,7 @@ public class Repository {
 
         List<String> allCommitIDs = plainFilenamesIn(COMMIT_DIR);
         if (allCommitIDs == null || allCommitIDs.isEmpty()) {
-            throw error("No commit with that id exists.");
+            abort("No commit with that id exists.");
         }
 
         List<String> matches = new ArrayList<>();
@@ -369,11 +448,11 @@ public class Repository {
         }
 
         if (matches.isEmpty()) {
-            throw error("No commit with that id exists.");
+            abort("No commit with that id exists.");
         }
 
         if (matches.size() > 1) {
-            throw error("Ambiguous commit id.");
+            abort("Ambiguous commit id.");
         }
 
         return matches.get(0);
@@ -428,5 +507,58 @@ public class Repository {
     private static Commit getParentCommit(Commit commit) {
         String parentId = commit.getParent();
         return parentId != null ? getCommitFromID(parentId) : null;
+    }
+
+    private static void logBranches() {
+        String currentBranch = getCurrentBranch();
+        List<String> branches = plainFilenamesIn(HEADS_DIR);
+
+        if (branches != null) {
+            Collections.sort(branches);
+            for (String branch : branches) {
+                if (branch.equals(currentBranch)) {
+                    System.out.println("*" + branch);
+                } else {
+                    System.out.println(branch);
+                }
+            }
+        }
+    }
+
+    private static void logStagedFiles() {
+        Stage stage = readStage();
+        stage.getAdded().keySet().stream()
+                .sorted()
+                .forEach(System.out::println);
+    }
+
+    private static void logRemovedFiles() {
+        Stage stage = readStage();
+        stage.getRemoved().stream()
+                .sorted()
+                .forEach(System.out::println);
+    }
+
+    /**
+     * A file in the working directory is “modified but not staged” if it is
+     * <p>
+     *     <ul>
+     *         <li>Tracked in the current commit, changed in the working directory, but not staged</li>
+     *         <li>Staged for addition, but with different contents than in the working directory</li>
+     *         <li>Staged for addition, but deleted in the working directory</li>
+     *         <li>Not staged for removal, but tracked in the current commit and deleted from the working directory.</li>
+     *     </ul>
+     */
+    private static void logNotStageForCommit() {
+        // TODO: implement me.
+    }
+
+    /**
+     * Untracked file is for files present in the working directory but neither staged for addition nor tracked.
+     * This includes files that have been staged for removal, but then re-created without Gitlet’s knowledge.
+     * Ignore any subdirectories that may have been introduced, since Gitlet does not deal with them.
+     */
+    private static void logUntrackedFiles() {
+        // TODO: implement me.
     }
 }

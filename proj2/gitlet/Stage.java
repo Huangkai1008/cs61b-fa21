@@ -27,18 +27,16 @@ public class Stage implements Serializable {
         return removed;
     }
 
-    /**
-     * Add file to stage.
-     */
     public void addFile(String filename, String blobID) {
         added.put(filename, blobID);
         removed.remove(filename);
     }
 
-    /**
-     * Remove file from stage.
-     */
-    public void removeFile(String filename) {
+    public void unstageFile(String filename) {
+        added.remove(filename);
+    }
+
+    public void stageForRemoval(String filename) {
         added.remove(filename);
         removed.add(filename);
     }

@@ -1,7 +1,6 @@
 package gitlet;
 
 import static gitlet.Utils.abort;
-import static gitlet.Utils.error;
 
 /** Driver class for Gitlet, a subset of the Git version-control system.
  *  @author huang.kai

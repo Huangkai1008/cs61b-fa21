@@ -301,11 +301,7 @@ public class Repository {
      * Like log, except displays information about all commits ever made. The order of the commits does not matter.
      */
     public static void globalLog() {
-        List<String> allCommitIDs = plainFilenamesIn(COMMIT_DIR);
-        if (allCommitIDs == null) {
-            return;
-        }
-
+        List<String> allCommitIDs = safeListFiles(COMMIT_DIR);
         for (String commitID: allCommitIDs) {
             Commit commit = getCommitFromID(commitID);
             System.out.print(commit.getLogString());
@@ -350,8 +346,8 @@ public class Repository {
      * If there are multiple such commits, it prints the ids out on separate lines.
      */
     public static void find(String message) {
-        List<String> allCommitIDs = plainFilenamesIn(COMMIT_DIR);
-        if (allCommitIDs == null || allCommitIDs.isEmpty()) {
+        List<String> allCommitIDs = safeListFiles(COMMIT_DIR);
+        if (allCommitIDs.isEmpty()) {
             abort("Found no commit with that message.");
         }
 
@@ -435,8 +431,8 @@ public class Repository {
             return commitID;
         }
 
-        List<String> allCommitIDs = plainFilenamesIn(COMMIT_DIR);
-        if (allCommitIDs == null || allCommitIDs.isEmpty()) {
+        List<String> allCommitIDs = safeListFiles(COMMIT_DIR);
+        if (allCommitIDs.isEmpty()) {
             abort("No commit with that id exists.");
         }
 
@@ -485,10 +481,7 @@ public class Repository {
         Map<String, String> targetBlobs = targetCommit.getBlobs();
         Stage stage = readStage();
 
-        List<String> workingFiles = plainFilenamesIn(CWD);
-        if (workingFiles == null) {
-            return false;
-        }
+        List<String> workingFiles = safeListFiles(CWD);
 
         for (String filename: workingFiles) {
             if (filename.startsWith(".gitlet")) continue;
@@ -511,16 +504,14 @@ public class Repository {
 
     private static void logBranches() {
         String currentBranch = getCurrentBranch();
-        List<String> branches = plainFilenamesIn(HEADS_DIR);
+        List<String> branches = safeListFiles(HEADS_DIR);
 
-        if (branches != null) {
-            Collections.sort(branches);
-            for (String branch : branches) {
-                if (branch.equals(currentBranch)) {
-                    System.out.println("*" + branch);
-                } else {
-                    System.out.println(branch);
-                }
+        Collections.sort(branches);
+        for (String branch : branches) {
+            if (branch.equals(currentBranch)) {
+                System.out.println("*" + branch);
+            } else {
+                System.out.println(branch);
             }
         }
     }
@@ -560,5 +551,10 @@ public class Repository {
      */
     private static void logUntrackedFiles() {
         // TODO: implement me.
+    }
+
+    private static List<String> safeListFiles(File directory) {
+        List<String> files = plainFilenamesIn(directory);
+        return files != null ? files : Collections.emptyList();
     }
 }

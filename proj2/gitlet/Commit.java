@@ -9,6 +9,8 @@ import java.util.*;
  *
  */
 public class Commit implements Serializable {
+    private final static int UID_LENGTH = 40;
+
     /**
      * The message of the commit.
      */

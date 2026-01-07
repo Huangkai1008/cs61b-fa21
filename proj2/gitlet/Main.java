@@ -1,5 +1,7 @@
 package gitlet;
 
+import java.util.Arrays;
+
 import static gitlet.Utils.error;
 
 /** Driver class for Gitlet, a subset of the Git version-control system.
@@ -15,13 +17,16 @@ public class Main {
             throw error("Please enter a command.");
         }
 
-        String firstArg = args[0];
-        switch(firstArg) {
-            case "init": {
-                validArgs(args, 1);
-                Repository.init();
-                break;
-            }
+        String cmd = args[0];
+        if (cmd.equals("init")) {
+            validArgs(args, 1);
+            Repository.init();
+            return;
+        }
+
+        Repository.ensureInitialized();
+
+        switch(cmd) {
             case "add": {
                 validArgs(args, 2);
                 String filename = args[1];
@@ -34,7 +39,26 @@ public class Main {
                 if (message == null || message.isEmpty()) {
                     throw error("Please enter a commit message.");
                 }
+
                 Repository.commit(message);
+                break;
+            }
+
+            case "checkout": {
+                validArgs(args, 2, 3, 4);
+                if (args.length == 2) {
+                    String branchName = args[1];
+                    Repository.checkoutBranch(branchName);
+                } else if (args.length == 3 && args[1].equals("--")) {
+                    String filename = args[2];
+                    Repository.checkout(filename);
+                } else if (args.length == 4 && args[2].equals("--")) {
+                    String commitID = args[1];
+                    String filename = args[3];
+                    Repository.checkout(commitID, filename);
+                } else {
+                    throw error("Incorrect operands.");
+                }
                 break;
             }
             default:
@@ -42,9 +66,12 @@ public class Main {
         }
     }
 
-    private static void validArgs(String[] args, int length) {
-        if (args.length != length) {
-            throw error("Incorrect operands.");
+    private static void validArgs(String[] args, int... validLengths) {
+        for (int validLength: validLengths) {
+            if (args.length == validLength) {
+                return;
+            }
         }
+        throw error("Incorrect operands.");
     }
 }

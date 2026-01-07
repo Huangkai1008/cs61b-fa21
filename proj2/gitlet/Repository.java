@@ -1,6 +1,8 @@
 package gitlet;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -53,6 +55,13 @@ public class Repository {
         createInitialCommit();
     }
 
+    public static void ensureInitialized() {
+        if (!isInitialized()) {
+            throw error("Not in an initialized Gitlet directory.");
+        }
+    }
+
+
     /**
      * Adds a copy of the file as it currently exists to the staging area (see the description of the commit command).
      * <p>
@@ -73,6 +82,9 @@ public class Repository {
 
         Stage stage = readStage();
         Blob blob = new Blob(file);
+
+        File blobFile = join(OBJECTS_DIR, blob.getBlobID());
+        writeObject(blobFile, blob);
         stage.addFile(filename, blob.getBlobID());
         writeStage(stage);
     }
@@ -143,16 +155,86 @@ public class Repository {
     }
 
     /**
+     * Checkout command with three different usages:
+     *
+     * <p>Usage 1: {@code checkout -- [file name]}
+     * <br>Takes the version of the file from the HEAD commit and puts it in the
+     * working directory, overwriting the existing version if present.
+     * The new version is not staged.
+     *
+     * <p>Usage 2: {@code checkout [commit id] -- [file name]}
+     * <br>Takes the version of the file from the specified commit and puts it in
+     * the working directory, overwriting the existing version if present.
+     * The new version is not staged.
+     * Supports abbreviated commit IDs (unique prefix).
+     *
+     * <p>Usage 3: {@code checkout [branch name]}
+     * <br>Takes all files from the HEAD of the given branch and puts them in the
+     * working directory, overwriting existing versions.
+     * The given branch becomes the current branch (HEAD).
+     * Files tracked in current branch but not in checked-out branch are deleted.
+     * The staging area is cleared.
+     *
+     * <p>Failure cases:
+     * <ul>
+     *   <li>Usage 1/2: If file does not exist in the commit, print
+     *       "File does not exist in that commit."</li>
+     *   <li>Usage 2: If no commit with given id exists, print
+     *       "No commit with that id exists."</li>
+     *   <li>Usage 3: If no branch with that name exists, print
+     *       "No such branch exists."</li>
+     *   <li>Usage 3: If branch is current branch, print
+     *       "No need to checkout the current branch."</li>
+     *   <li>Usage 3: If untracked file would be overwritten, print
+     *       "There is an untracked file in the way; delete it, or add and commit it first."</li>
+     * </ul>
+     *
+     */
+    public static void checkout(String filename) {
+        checkout(getCurrentCommitID(), filename);
+    }
+
+    public static void checkout(String commitID, String filename) {
+        Commit commit = getCommitFromID(commitID);
+        Map<String, String> blobs = commit.getBlobs();
+        String blobID = blobs.get(filename);
+        if (blobID == null) {
+            throw error("File does not exist in that commit.");
+        }
+
+        File blobFile = join(OBJECTS_DIR, blobID);
+        Blob blob = readObject(blobFile, Blob.class);
+        byte[] content = blob.getContent();
+
+        File targetFile = join(CWD, filename);
+        writeContents(targetFile, (Object) content);
+    }
+
+    public static void checkoutBranch(String branchName) {
+        File branchFile = Utils.join(REFS_DIR, branchName);
+        if (!branchFile.exists()) {
+            throw error("No such branch exists.");
+        }
+
+        if (getCurrentBranch().equals(branchName)) {
+            throw error("No need to checkout the current branch.");
+        }
+
+        Commit targetCommit = getCommitFromID(Utils.readContentsAsString(branchFile));
+        if (hasUntrackedFiles(targetCommit)) {
+            throw error("There is an untracked file in the way; delete it, or add and commit it first.");
+        }
+
+        setCurrentBranch(branchName);
+        Stage stage = readStage();
+        stage.clear();
+    }
+
+    /**
      * @return whether the repository is initialized.
      */
     private static boolean isInitialized() {
         return GITLET_DIR.exists();
-    }
-
-    private static void ensureInitialized() {
-        if (!isInitialized()) {
-            throw error("Not in an initialized Gitlet directory.");
-        }
     }
 
     private static void setupDirectories() {
@@ -176,7 +258,6 @@ public class Repository {
         writeStage(stage);
     }
 
-
     private static String getCurrentBranch() {
         return Utils.readContentsAsString(HEAD_FILE);
     }
@@ -193,8 +274,50 @@ public class Repository {
 
     private static Commit getCurrentCommit() {
         String commitID = getCurrentCommitID();
-        File commitFile = Utils.join(OBJECTS_DIR, commitID);
+        return getCommitFromID(commitID);
+    }
+
+    /**
+     * Get commit from given commit id, commit id can be abbreviated.
+     */
+    private static Commit getCommitFromID(String commitID) {
+        String fullCommitID = resolveCommitID(commitID);
+        File commitFile = Utils.join(OBJECTS_DIR, fullCommitID);
+        if (!commitFile.exists()) {
+            throw error("No commit with that id exists.");
+        }
         return readObject(commitFile, Commit.class);
+    }
+
+    /**
+     * Resolve abbreviated commit ID to full ID.
+     */
+    private static String resolveCommitID(String commitID) {
+        if (commitID.length() == UID_LENGTH) {
+            return commitID;
+        }
+
+        List<String> allCommitIDs = plainFilenamesIn(OBJECTS_DIR);
+        if (allCommitIDs == null || allCommitIDs.isEmpty()) {
+            throw error("No commit with that id exists.");
+        }
+
+        List<String> matches = new ArrayList<>();
+        for (String fullId : allCommitIDs) {
+            if (fullId.startsWith(commitID)) {
+                matches.add(fullId);
+            }
+        }
+
+        if (matches.isEmpty()) {
+            throw error("No commit with that id exists.");
+        }
+
+        if (matches.size() > 1) {
+            throw error("Ambiguous commit id.");
+        }
+
+        return matches.get(0);
     }
 
     private static void createInitialCommit() {
@@ -216,5 +339,30 @@ public class Repository {
     private static void saveCommit(Commit commit) {
         File commitFile = Utils.join(OBJECTS_DIR, commit.getCommitID());
         writeObject(commitFile, commit);
+    }
+
+    private static boolean hasUntrackedFiles(Commit targetCommit) {
+        Commit currentCommit = getCurrentCommit();
+        Map<String, String> currentBlobs = currentCommit.getBlobs();
+        Map<String, String> targetBlobs = targetCommit.getBlobs();
+        Stage stage = readStage();
+
+        List<String> workingFiles = plainFilenamesIn(CWD);
+        if (workingFiles == null) {
+            return false;
+        }
+
+        for (String filename: workingFiles) {
+            if (filename.startsWith(".gitlet")) continue;
+
+            boolean trackedInCurrent = currentBlobs.containsKey(filename);
+            boolean stagedForAddition = stage.getAdded().containsKey(filename);
+            boolean isUntracked = !trackedInCurrent && !stagedForAddition;
+            if (isUntracked && targetBlobs.containsKey(filename)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -116,6 +116,13 @@ public class Main {
                 break;
             }
 
+            case "reset": {
+                validArgs(args, 2);
+                String commitID = args[1];
+                Repository.reset(commitID);
+                break;
+            }
+
             default:
                 abort("No command with that name exists.");
         }

@@ -2,6 +2,7 @@ package gitlet;
 
 import java.io.File;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static gitlet.Utils.*;
 
@@ -251,16 +252,11 @@ public class Repository {
             abort("File does not exist in that commit.");
         }
 
-        File blobFile = join(BLOB_DIR, blobID);
-        Blob blob = readObject(blobFile, Blob.class);
-        byte[] content = blob.getContent();
-
-        File targetFile = join(CWD, filename);
-        writeContents(targetFile, (Object) content);
+        restoreFile(filename, blobID);
     }
 
     public static void checkoutBranch(String branchName) {
-        File branchFile = Utils.join(REFS_DIR, branchName);
+        File branchFile = Utils.join(HEADS_DIR, branchName);
         if (!branchFile.exists()) {
             abort("No such branch exists.");
         }
@@ -346,17 +342,55 @@ public class Repository {
      * If there are multiple such commits, it prints the ids out on separate lines.
      */
     public static void find(String message) {
-        List<String> allCommitIDs = safeListFiles(COMMIT_DIR);
-        if (allCommitIDs.isEmpty()) {
+        List<String> allCommits = safeListFiles(COMMIT_DIR);
+        List<String> matchedCommits = allCommits.stream()
+                .map(Repository::getCommitFromID)
+                .filter(commit -> commit.getMessage().equals(message))
+                .map(Commit::getCommitID)
+                .collect(Collectors.toList());
+
+        if (matchedCommits.isEmpty()) {
             abort("Found no commit with that message.");
         }
 
-        for (String commitID: allCommitIDs) {
-            Commit commit = getCommitFromID(commitID);
-            if (commit.getMessage().contains(message)) {
-                System.out.println(commitID);
+        matchedCommits.forEach(System.out::println);
+    }
+
+    /**
+     * Checks out all the files tracked by the given commit.
+     * Removes tracked files that are not present in that commit.
+     * Also moves the current branch’s head to that commit node.
+     * <p>
+     * See the intro for an example of what happens to the head pointer after using reset.
+     * The [commit id] may be abbreviated as for checkout.
+     * The staging area is cleared.
+     * The command is essentially checkout of an arbitrary commit that also changes the current branch head.
+     */
+    public static void reset(String commitID) {
+        Commit currentCommit = getCurrentCommit();
+        Commit targetCommit = getCommitFromID(commitID);
+
+        // Restore all files from the target commit.
+        Map<String, String> targetBlobs = targetCommit.getBlobs();
+        for (var entry : targetBlobs.entrySet()) {
+            String filename = entry.getKey();
+            String blobId = entry.getValue();
+            restoreFile(filename, blobId);
+        }
+
+        // Delete tracked files that are not present in that commit.
+        for (String filename : currentCommit.getBlobs().keySet()) {
+            if (!targetBlobs.containsKey(filename)) {
+                restrictedDelete(join(CWD, filename));
             }
         }
+
+        Stage stage = readStage();
+        stage.clear();
+
+        // Moves the current branch’s head to that commit node.
+        File branch = Utils.join(HEADS_DIR, getCurrentBranch());
+        Utils.writeContents(branch, targetCommit.getCommitID());
     }
 
     /**
@@ -468,6 +502,14 @@ public class Repository {
 
     private static void writeStage(Stage stage) {
         writeObject(STAGE_FILE, stage);
+    }
+
+    private static void restoreFile(String filename, String blobId) {
+        File blobFile = join(BLOB_DIR, blobId);
+        Blob blob = readObject(blobFile, Blob.class);
+
+        File targetFile = join(CWD, filename);
+        writeContents(targetFile, (Object) blob.getContent());
     }
 
     private static void saveCommit(Commit commit) {

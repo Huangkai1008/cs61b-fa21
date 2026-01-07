@@ -20,6 +20,8 @@ public class Repository {
     /** The .gitlet directory. */
     public static final File GITLET_DIR = join(CWD, ".gitlet");
     public static final File OBJECTS_DIR = join(GITLET_DIR, "objects");
+    public static final File COMMIT_DIR = join(OBJECTS_DIR, "commits");
+    public static final File BLOB_DIR = join(COMMIT_DIR, "blobs");
     public static final File REFS_DIR = join(GITLET_DIR, "refs");
     public static final File HEADS_DIR = join(REFS_DIR, "heads");
     public static final File HEAD_FILE = join(GITLET_DIR, "HEAD");
@@ -83,7 +85,7 @@ public class Repository {
         Stage stage = readStage();
         Blob blob = new Blob(file);
 
-        File blobFile = join(OBJECTS_DIR, blob.getBlobID());
+        File blobFile = join(BLOB_DIR, blob.getBlobID());
         writeObject(blobFile, blob);
         stage.addFile(filename, blob.getBlobID());
         writeStage(stage);
@@ -202,7 +204,7 @@ public class Repository {
             throw error("File does not exist in that commit.");
         }
 
-        File blobFile = join(OBJECTS_DIR, blobID);
+        File blobFile = join(BLOB_DIR, blobID);
         Blob blob = readObject(blobFile, Blob.class);
         byte[] content = blob.getContent();
 
@@ -262,10 +264,15 @@ public class Repository {
         if (!OBJECTS_DIR.mkdirs()) {
             throw error("Failed to create objects directory.");
         }
+        if (!COMMIT_DIR.mkdirs()) {
+            throw error("Failed to create commits directory.");
+        }
+        if (!BLOB_DIR.mkdirs()) {
+            throw error("Failed to create blobs directory.");
+        }
         if (!REFS_DIR.mkdirs()) {
             throw error("Failed to create refs directory.");
         }
-
         if (!HEADS_DIR.mkdirs()) {
             throw error("Failed to create heads directory.");
         }
@@ -300,7 +307,7 @@ public class Repository {
      */
     private static Commit getCommitFromID(String commitID) {
         String fullCommitID = resolveCommitID(commitID);
-        File commitFile = Utils.join(OBJECTS_DIR, fullCommitID);
+        File commitFile = Utils.join(COMMIT_DIR, fullCommitID);
         if (!commitFile.exists()) {
             throw error("No commit with that id exists.");
         }
@@ -315,7 +322,7 @@ public class Repository {
             return commitID;
         }
 
-        List<String> allCommitIDs = plainFilenamesIn(OBJECTS_DIR);
+        List<String> allCommitIDs = plainFilenamesIn(COMMIT_DIR);
         if (allCommitIDs == null || allCommitIDs.isEmpty()) {
             throw error("No commit with that id exists.");
         }
@@ -355,7 +362,7 @@ public class Repository {
     }
 
     private static void saveCommit(Commit commit) {
-        File commitFile = Utils.join(OBJECTS_DIR, commit.getCommitID());
+        File commitFile = Utils.join(COMMIT_DIR, commit.getCommitID());
         writeObject(commitFile, commit);
     }
 

@@ -201,7 +201,9 @@ public class Repository {
             abort("Cannot remove the current branch.");
         }
 
-        Utils.restrictedDelete(branch);
+        if (!branch.delete()) {
+            throw error("Failed to delete branch");
+        }
     }
 
     /**
@@ -270,9 +272,22 @@ public class Repository {
             abort("There is an untracked file in the way; delete it, or add and commit it first.");
         }
 
+        Commit currentCommit = getCurrentCommit();
+        Map<String, String> targetBlobs = targetCommit.getBlobs();
+        for (var entry : targetBlobs.entrySet()) {
+            restoreFile(entry.getKey(), entry.getValue());
+        }
+
+        for (String filename : currentCommit.getBlobs().keySet()) {
+            if (!targetBlobs.containsKey(filename)) {
+                restrictedDelete(join(CWD, filename));
+            }
+        }
+
         setCurrentBranch(branchName);
         Stage stage = readStage();
         stage.clear();
+        writeStage(stage);
     }
 
     /**
@@ -370,6 +385,11 @@ public class Repository {
         Commit currentCommit = getCurrentCommit();
         Commit targetCommit = getCommitFromID(commitID);
 
+        // Check for untracked files that would be overwritten
+        if (hasUntrackedFiles(targetCommit)) {
+            abort("There is an untracked file in the way; delete it, or add and commit it first.");
+        }
+
         // Restore all files from the target commit.
         Map<String, String> targetBlobs = targetCommit.getBlobs();
         for (var entry : targetBlobs.entrySet()) {
@@ -387,10 +407,177 @@ public class Repository {
 
         Stage stage = readStage();
         stage.clear();
+        writeStage(stage);
 
         // Moves the current branch’s head to that commit node.
         File branch = Utils.join(HEADS_DIR, getCurrentBranch());
         Utils.writeContents(branch, targetCommit.getCommitID());
+    }
+
+    /**
+     * Merges files from the given branch into the current branch.
+     */
+    public static void merge(String branchName) {
+        Stage stage = readStage();
+        if (!stage.isClean()) {
+            abort("You have uncommitted changes.");
+        }
+
+        File givenBranch = Utils.join(HEADS_DIR, branchName);
+        if (!givenBranch.exists()) {
+            abort("A branch with that name does not exist.");
+        }
+
+        if (branchName.equals(getCurrentBranch())) {
+            abort("Cannot merge a branch with itself.");
+        }
+
+        String currentCommitID = getCurrentCommitID();
+        String givenCommitID = readContentsAsString(givenBranch);
+        
+        // Check for untracked files that would be overwritten
+        Commit givenCommit = getCommitFromID(givenCommitID);
+        if (hasUntrackedFiles(givenCommit)) {
+            abort("There is an untracked file in the way; delete it, or add and commit it first.");
+        }
+
+        String splitPoint = findSplitPoint(currentCommitID, givenCommitID);
+        
+        if (splitPoint.equals(givenCommitID)) {
+            message("Given branch is an ancestor of the current branch.");
+            return;
+        }
+
+        if (splitPoint.equals(currentCommitID)) {
+            checkoutBranch(branchName);
+            message("Current branch fast-forwarded.");
+            return;
+        }
+
+        Commit splitCommit = getCommitFromID(splitPoint);
+        Commit currentCommit = getCommitFromID(currentCommitID);
+
+        Map<String, String> splitBlobs = splitCommit.getBlobs();
+        Map<String, String> currentBlobs = currentCommit.getBlobs();
+        Map<String, String> givenBlobs = givenCommit.getBlobs();
+
+        Set<String> allFiles = new HashSet<>();
+        allFiles.addAll(splitBlobs.keySet());
+        allFiles.addAll(currentBlobs.keySet());
+        allFiles.addAll(givenBlobs.keySet());
+        boolean hasConflict = false;
+
+        for (String filename: allFiles) {
+            String splitBlobId = splitBlobs.get(filename);
+            String currentBlobId = currentBlobs.get(filename);
+            String givenBlobId = givenBlobs.get(filename);
+
+            boolean modifiedInCurrent = !Objects.equals(splitBlobId, currentBlobId);
+            boolean modifiedInGiven = !Objects.equals(splitBlobId, givenBlobId);
+            boolean presentAtSplitPoint = splitBlobId != null;
+            boolean presentAtCurrent = currentBlobId != null;
+            boolean presentAtGiven = givenBlobId != null;
+            boolean sameInBoth = Objects.equals(currentBlobId, givenBlobId);
+
+            // Merge rule 1:
+            //
+            // Any files that have been modified in the given branch since the split point,
+            // but not modified in the current branch since the split point should be changed to their versions
+            // in the given branch (checked out from the commit at the front of the given branch).
+            // These files should then all be automatically staged.
+            //
+            // To clarify, if a file is “modified in the given branch since the split point” this
+            // means the version of the file as it exists in the commit at the front of the given branch
+            // has different content from the version of the file at the split point.
+            if (modifiedInGiven && !modifiedInCurrent) {
+                // The file has been deleted in given branch.
+                if (givenBlobId == null) {
+                    File file = Utils.join(CWD, filename);
+                    Utils.restrictedDelete(file);
+                    stage.stageForRemoval(filename);
+                } else {
+                    restoreFile(filename, givenBlobId);
+                    stage.addFile(filename, givenBlobId);
+                }
+            }
+
+            // Merge rule 2:
+            //
+            // Any files that have been modified in the current branch but not in the given branch
+            // since the split point should stay as they are.
+            else if (modifiedInCurrent && !modifiedInGiven) {
+                keepCurrent();
+            }
+
+            // Merge rule 3:
+            //
+            // Any files that have been modified in both the current and given branch in the same way
+            // (i.e., both files now have the same content or were both removed) are left unchanged by the merge.
+            //
+            // If a file was removed from both the current and given branch,
+            // but a file of the same name is present in the working directory,
+            // it is left alone and continues to be absent (not tracked nor staged) in the merge.
+            else if (modifiedInGiven && modifiedInCurrent && sameInBoth) {
+                keepCurrent();
+            }
+
+            // Merge rule 4:
+            //
+            // Any files that were not present at the split point and
+            // are present only in the current branch should remain as they are.
+            else if (!presentAtSplitPoint && presentAtCurrent && !presentAtGiven) {
+                keepCurrent();
+            }
+
+            // Merge rule 5:
+            //
+            // Any files that were not present at the split point
+            // and are present only in the given branch should be checked out and staged.
+            else if (!presentAtSplitPoint && presentAtGiven && !presentAtCurrent) {
+                restoreFile(filename, givenBlobId);
+                stage.addFile(filename, givenBlobId);
+            }
+
+            // Merge rule 7 (规则6已被规则1覆盖):
+            //
+            // Any files present at the split point, unmodified in the given branch,
+            // and absent in the current branch should remain absent.
+            else if (presentAtSplitPoint && !modifiedInGiven && !presentAtCurrent) {
+                keepCurrent();
+            }
+
+            // Merge rule 8:
+            // Any files modified in different ways in the current and given branches are in conflict.
+            // "Modified in different ways" can mean that the contents of both are changed and different from other,
+            // or the contents of one are changed and the other file is deleted,
+            // or the file was absent at the split point and has different contents in the given and current branches.
+            else {
+                hasConflict = true;
+                handleMergeConflict(filename, currentBlobId, givenBlobId, stage);
+            }
+        }
+
+        writeStage(stage);
+
+        Map<String, String> newBlobs = new TreeMap<>(currentBlobs);
+        newBlobs.putAll(stage.getAdded());
+        for (String removed : stage.getRemoved()) {
+            newBlobs.remove(removed);
+        }
+
+        String mergeMessage = String.format("Merged %s into %s.", branchName, getCurrentBranch());
+        Commit mergeCommit = new Commit(mergeMessage, currentCommitID, givenCommitID, newBlobs);
+        saveCommit(mergeCommit);
+
+        File currentBranchFile = join(HEADS_DIR, getCurrentBranch());
+        writeContents(currentBranchFile, mergeCommit.getCommitID());
+
+        stage.clear();
+        writeStage(stage);
+
+        if (hasConflict) {
+            System.out.println("Encountered a merge conflict.");
+        }
     }
 
     /**
@@ -402,22 +589,22 @@ public class Repository {
 
     private static void setupDirectories() {
         if (!GITLET_DIR.mkdirs()) {
-            abort("Failed to create .gitlet directory.");
+            throw error("Failed to create .gitlet directory.");
         }
         if (!OBJECTS_DIR.mkdirs()) {
-            abort("Failed to create objects directory.");
+            throw error("Failed to create objects directory.");
         }
         if (!COMMIT_DIR.mkdirs()) {
-            abort("Failed to create commits directory.");
+            throw error("Failed to create commits directory.");
         }
         if (!BLOB_DIR.mkdirs()) {
-            abort("Failed to create blobs directory.");
+            throw error("Failed to create blobs directory.");
         }
         if (!REFS_DIR.mkdirs()) {
-            abort("Failed to create refs directory.");
+            throw error("Failed to create refs directory.");
         }
         if (!HEADS_DIR.mkdirs()) {
-            abort("Failed to create heads directory.");
+            throw error("Failed to create heads directory.");
         }
     }
 
@@ -598,5 +785,74 @@ public class Repository {
     private static List<String> safeListFiles(File directory) {
         List<String> files = plainFilenamesIn(directory);
         return files != null ? files : Collections.emptyList();
+    }
+
+    /**
+     * The split point is the latest common ancestor of the current and given branch heads:
+     * <p>
+     * - A common ancestor is a commit to which there is a path (of 0 or more parent pointers) from both branch heads.
+     * <p>
+     * - The latest common ancestor is a common ancestor that is not an ancestor of any other common ancestor.
+     */
+    private static String findSplitPoint(String currentCommitID, String givenCommitID) {
+        Map<String, Integer> currentDepths = getCommitDepths(currentCommitID);
+        Map<String, Integer> givenDepths = getCommitDepths(givenCommitID);
+
+        // 找 depth 最小的共同祖先（最近的）
+        return currentDepths.keySet().stream()
+                .filter(givenDepths::containsKey)
+                .min(Comparator.comparingInt(currentDepths::get))
+                .orElse(null);
+    }
+
+    private static Map<String, Integer> getCommitDepths(String commitId) {
+        Map<String, Integer> depths = new HashMap<>();
+        collectDepths(commitId, 0, depths);
+        return depths;
+    }
+
+    private static void collectDepths(String commitId, int depth, Map<String, Integer> depths) {
+        if (commitId == null || depths.containsKey(commitId)) {
+            return;
+        }
+
+        depths.put(commitId, depth);
+        Commit commit = getCommitFromID(commitId);
+
+        collectDepths(commit.getParent(), depth + 1, depths);
+        collectDepths(commit.getSecondParent(), depth + 1, depths);
+    }
+
+    private static void keepCurrent() {
+    }
+
+    private static void handleMergeConflict(String filename, String currentBlobId, 
+                                           String givenBlobId, Stage stage) {
+        String currentContent = "";
+        String givenContent = "";
+        
+        if (currentBlobId != null) {
+            File blobFile = join(BLOB_DIR, currentBlobId);
+            Blob blob = readObject(blobFile, Blob.class);
+            currentContent = new String(blob.getContent());
+        }
+        
+        if (givenBlobId != null) {
+            File blobFile = join(BLOB_DIR, givenBlobId);
+            Blob blob = readObject(blobFile, Blob.class);
+            givenContent = new String(blob.getContent());
+        }
+        
+        String conflictContent = String.format("<<<<<<< HEAD\n%s=======\n%s>>>>>>>\n",
+                currentContent, givenContent);
+        
+        File file = join(CWD, filename);
+        writeContents(file, conflictContent);
+        
+        // Stage the conflict file
+        Blob conflictBlob = new Blob(conflictContent.getBytes());
+        File conflictBlobFile = join(BLOB_DIR, conflictBlob.getBlobID());
+        writeObject(conflictBlobFile, conflictBlob);
+        stage.addFile(filename, conflictBlob.getBlobID());
     }
 }

@@ -123,6 +123,16 @@ public class Main {
                 break;
             }
 
+            case "merge": {
+                validArgs(args, 2);
+                String branchName = args[1];
+                if (branchName == null || branchName.isEmpty()) {
+                    abort("Please enter a branch name.");
+                }
+                Repository.merge(branchName);
+                break;
+            }
+
             default:
                 abort("No command with that name exists.");
         }

@@ -686,8 +686,10 @@ public class Repository {
         String localRemoteBranchName = remoteName + "/" + remoteBranchName;
         File localBranchFile = join(HEADS_DIR, localRemoteBranchName);
         File parentDir = localBranchFile.getParentFile();
-        if (!parentDir.exists()) {
-            parentDir.mkdirs();
+        if (parentDir != null && !parentDir.exists()) {
+            if (!parentDir.mkdirs()) {
+                throw error("Failed to create directory: %s", parentDir);
+            }
         }
         writeContents(localBranchFile, remoteHead);
     }
@@ -1159,7 +1161,7 @@ public class Repository {
             String commitID = queue.poll();
 
             if (visited.contains(commitID)
-                    || (commitID.equals(remoteHead))
+                    || (remoteHead != null && commitID.equals(remoteHead))
                     || hasCommitIn(remoteGitletDir, commitID)) {
                 continue;
             }

@@ -244,7 +244,7 @@ public class Repository {
      */
     public static void checkout(String filename) {
         checkout(getCurrentCommitID(), filename);
-    }
+        }
 
     public static void checkout(String commitID, String filename) {
         Commit commit = getCommitFromID(commitID);
@@ -843,8 +843,11 @@ public class Repository {
             givenContent = new String(blob.getContent());
         }
         
-        String conflictContent = String.format("<<<<<<< HEAD\n%s=======\n%s>>>>>>>\n",
-                currentContent, givenContent);
+        String conflictContent = """
+                <<<<<<< HEAD
+                %s=======
+                %s>>>>>>>
+                """.formatted(currentContent, givenContent);
         
         File file = join(CWD, filename);
         writeContents(file, conflictContent);

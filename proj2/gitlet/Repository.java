@@ -6,16 +6,21 @@ import java.util.stream.Collectors;
 
 import static gitlet.Utils.*;
 
-/** Represents a gitlet repository.
+/**
+ * Represents a gitlet repository.
  *
- *  @author huang.kai
+ * @author huang.kai
  */
 public class Repository {
 
-    /** The current working directory. */
+    /**
+     * The current working directory.
+     */
     public static final File CWD = new File(System.getProperty("user.dir"));
 
-    /** The .gitlet directory. */
+    /**
+     * The .gitlet directory.
+     */
     public static final File GITLET_DIR = join(CWD, ".gitlet");
     public static final File OBJECTS_DIR = join(GITLET_DIR, "objects");
     public static final File COMMIT_DIR = join(OBJECTS_DIR, "commits");
@@ -25,7 +30,9 @@ public class Repository {
     public static final File HEAD_FILE = join(GITLET_DIR, "HEAD");
     public static final File STAGE_FILE = join(GITLET_DIR, "stage");
 
-    /** The default branch of gitlet */
+    /**
+     * The default branch of gitlet
+     */
     public static final String DEFAULT_BRANCH = "master";
 
     /**
@@ -160,7 +167,7 @@ public class Repository {
         String parentCommitID = parentCommit.getCommitID();
         Map<String, String> newBlobs = new TreeMap<>(parentCommit.getBlobs());
         newBlobs.putAll(stage.getAdded());
-        for (String filename: stage.getRemoved()) {
+        for (String filename : stage.getRemoved()) {
             newBlobs.remove(filename);
         }
 
@@ -244,7 +251,7 @@ public class Repository {
      */
     public static void checkout(String filename) {
         checkout(getCurrentCommitID(), filename);
-        }
+    }
 
     public static void checkout(String commitID, String filename) {
         Commit commit = getCommitFromID(commitID);
@@ -313,7 +320,7 @@ public class Repository {
      */
     public static void globalLog() {
         List<String> allCommitIDs = safeListFiles(COMMIT_DIR);
-        for (String commitID: allCommitIDs) {
+        for (String commitID : allCommitIDs) {
             Commit commit = getCommitFromID(commitID);
             System.out.print(commit.getLogString());
             System.out.println();
@@ -434,7 +441,7 @@ public class Repository {
 
         String currentCommitID = getCurrentCommitID();
         String givenCommitID = readContentsAsString(givenBranch);
-        
+
         // Check for untracked files that would be overwritten
         Commit givenCommit = getCommitFromID(givenCommitID);
         if (hasUntrackedFiles(givenCommit)) {
@@ -442,7 +449,7 @@ public class Repository {
         }
 
         String splitPoint = findSplitPoint(currentCommitID, givenCommitID);
-        
+
         if (splitPoint.equals(givenCommitID)) {
             message("Given branch is an ancestor of the current branch.");
             return;
@@ -467,7 +474,7 @@ public class Repository {
         allFiles.addAll(givenBlobs.keySet());
         boolean hasConflict = false;
 
-        for (String filename: allFiles) {
+        for (String filename : allFiles) {
             String splitBlobId = splitBlobs.get(filename);
             String currentBlobId = currentBlobs.get(filename);
             String givenBlobId = givenBlobs.get(filename);
@@ -712,7 +719,7 @@ public class Repository {
 
         List<String> workingFiles = safeListFiles(CWD);
 
-        for (String filename: workingFiles) {
+        for (String filename : workingFiles) {
             if (filename.startsWith(".gitlet")) continue;
 
             boolean trackedInCurrent = currentBlobs.containsKey(filename);
@@ -762,12 +769,12 @@ public class Repository {
     /**
      * A file in the working directory is “modified but not staged” if it is
      * <p>
-     *     <ul>
-     *         <li>Tracked in the current commit, changed in the working directory, but not staged</li>
-     *         <li>Staged for addition, but with different contents than in the working directory</li>
-     *         <li>Staged for addition, but deleted in the working directory</li>
-     *         <li>Not staged for removal, but tracked in the current commit and deleted from the working directory.</li>
-     *     </ul>
+     * <ul>
+     *     <li>Tracked in the current commit, changed in the working directory, but not staged</li>
+     *     <li>Staged for addition, but with different contents than in the working directory</li>
+     *     <li>Staged for addition, but deleted in the working directory</li>
+     *     <li>Not staged for removal, but tracked in the current commit and deleted from the working directory.</li>
+     * </ul>
      */
     private static void logNotStageForCommit() {
         // TODO: implement me.
@@ -826,32 +833,32 @@ public class Repository {
     private static void keepCurrent() {
     }
 
-    private static void handleMergeConflict(String filename, String currentBlobId, 
-                                           String givenBlobId, Stage stage) {
+    private static void handleMergeConflict(String filename, String currentBlobId,
+                                            String givenBlobId, Stage stage) {
         String currentContent = "";
         String givenContent = "";
-        
+
         if (currentBlobId != null) {
             File blobFile = join(BLOB_DIR, currentBlobId);
             Blob blob = readObject(blobFile, Blob.class);
             currentContent = new String(blob.getContent());
         }
-        
+
         if (givenBlobId != null) {
             File blobFile = join(BLOB_DIR, givenBlobId);
             Blob blob = readObject(blobFile, Blob.class);
             givenContent = new String(blob.getContent());
         }
-        
+
         String conflictContent = """
                 <<<<<<< HEAD
                 %s=======
                 %s>>>>>>>
                 """.formatted(currentContent, givenContent);
-        
+
         File file = join(CWD, filename);
         writeContents(file, conflictContent);
-        
+
         // Stage the conflict file
         Blob conflictBlob = new Blob(conflictContent.getBytes());
         File conflictBlobFile = join(BLOB_DIR, conflictBlob.getBlobID());

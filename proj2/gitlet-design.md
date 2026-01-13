@@ -15,7 +15,6 @@
 5. Map<String, String> files - 文件名到 blob SHA-1 的映射
 6. String id - 提交的 SHA-1 ID
 
-
 ### Repository
 
 #### Fields
@@ -27,10 +26,10 @@
 5. File HEADS_DIR - refs/heads 目录
 6. File HEAD_FILE - HEAD 文件
 
-
 ## Algorithms
 
 ### init
+
 1. 检查 .gitlet 是否已存在
 2. 创建目录结构
 3. 创建初始提交（时间戳为 epoch）
@@ -38,12 +37,14 @@
 5. HEAD 指向 master
 
 ### add
+
 1. 读取文件内容
 2. 计算 blob SHA-1
 3. 将文件添加到 addstage
 4. 如果文件在 removestage 中，移除
 
 ### commit
+
 1. 检查暂存区是否为空
 2. 从当前提交复制文件映射
 3. 应用暂存区的修改
@@ -54,6 +55,7 @@
 ## Persistence
 
 ### 目录结构
+
 ```
 .gitlet/
   ├── objects/          # 存储 commit 和 blob
@@ -66,6 +68,7 @@
 ```
 
 ### 存储方式
+
 - Commit: 序列化存储在 objects/[SHA-1]
 - Blob: 文件内容存储在 objects/[SHA-1]
 - Branch: 文本文件存储在 refs/heads/[分支名]，内容为 commit SHA-1

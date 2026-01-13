@@ -93,10 +93,6 @@ public class Commit implements Serializable {
         return secondParent;
     }
 
-    public boolean hasParent() {
-        return parent != null;
-    }
-
     /**
      * Returns formatted timestamp string.
      */
@@ -120,7 +116,7 @@ public class Commit implements Serializable {
                     Merge: %s %s
                     Date: %s
                     %s
-                    """, commitID, parent.substring(0, 6), secondParent.substring(0, 6), getFormattedDate(), message);
+                    """, commitID, parent.substring(0, 7), secondParent.substring(0, 7), getFormattedDate(), message);
         }
 
         return String.format("""

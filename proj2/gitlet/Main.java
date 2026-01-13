@@ -2,13 +2,16 @@ package gitlet;
 
 import static gitlet.Utils.abort;
 
-/** Driver class for Gitlet, a subset of the Git version-control system.
- *  @author huang.kai
+/**
+ * Driver class for Gitlet, a subset of the Git version-control system.
+ *
+ * @author huang.kai
  */
 public class Main {
 
-    /** Usage: java gitlet.Main ARGS, where ARGS contains
-     *  <COMMAND> <OPERAND1> <OPERAND2> ... 
+    /**
+     * Usage: java gitlet.Main ARGS, where ARGS contains
+     * <COMMAND> <OPERAND1> <OPERAND2> ...
      */
     public static void main(String[] args) {
         if (args.length == 0) {
@@ -24,7 +27,7 @@ public class Main {
 
         Repository.ensureInitialized();
 
-        switch(cmd) {
+        switch (cmd) {
             case "add": {
                 validArgs(args, 2);
                 String filename = args[1];
@@ -139,7 +142,7 @@ public class Main {
     }
 
     private static void validArgs(String[] args, int... validLengths) {
-        for (int validLength: validLengths) {
+        for (int validLength : validLengths) {
             if (args.length == validLength) {
                 return;
             }

@@ -6,12 +6,18 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-/** Represents the staging area. */
+/**
+ * Represents the staging area.
+ */
 public class Stage implements Serializable {
-    /** Files staged for addition: filename -> blob ID */
+    /**
+     * Files staged for addition: filename -> blob ID
+     */
     private Map<String, String> added;
 
-    /** Files staged for removal */
+    /**
+     * Files staged for removal
+     */
     private Set<String> removed;
 
     public Stage() {

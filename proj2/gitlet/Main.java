@@ -136,6 +136,45 @@ public class Main {
                 break;
             }
 
+            case "add-remote": {
+                validArgs(args, 3);
+                String remoteName = args[1];
+                String remotePath = args[2];
+                Repository.addRemote(remoteName, remotePath);
+                break;
+            }
+
+            case "rm-remote": {
+                validArgs(args, 2);
+                String remoteName = args[1];
+                Repository.rmRemote(remoteName);
+                break;
+            }
+
+            case "push": {
+                validArgs(args, 3);
+                String remoteName = args[1];
+                String remoteBranchName = args[2];
+                Repository.push(remoteName, remoteBranchName);
+                break;
+            }
+
+            case "fetch": {
+                validArgs(args, 3);
+                String remoteName = args[1];
+                String remoteBranchName = args[2];
+                Repository.fetch(remoteName, remoteBranchName);
+                break;
+            }
+
+            case "pull": {
+                validArgs(args, 3);
+                String remoteName = args[1];
+                String remoteBranchName = args[2];
+                Repository.pull(remoteName, remoteBranchName);
+                break;
+            }
+
             default:
                 abort("No command with that name exists.");
         }

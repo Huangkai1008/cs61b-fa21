@@ -29,6 +29,7 @@ public class Repository {
     public static final File HEADS_DIR = join(REFS_DIR, "heads");
     public static final File HEAD_FILE = join(GITLET_DIR, "HEAD");
     public static final File STAGE_FILE = join(GITLET_DIR, "stage");
+    public static final File REMOTES_FILE = join(GITLET_DIR, "remotes");
 
     /**
      * The default branch of gitlet
@@ -59,6 +60,7 @@ public class Repository {
 
         setupDirectories();
         setupStagingArea();
+        setupRemotes();
         createInitialCommit();
     }
 
@@ -486,6 +488,13 @@ public class Repository {
             boolean presentAtGiven = givenBlobId != null;
             boolean sameInBoth = Objects.equals(currentBlobId, givenBlobId);
 
+            // Merge rule 0 (implicit):
+            // Files that are the same in all three commits (split, current, given) remain unchanged
+            if (!modifiedInCurrent && !modifiedInGiven) {
+                keepCurrent();
+                continue;
+            }
+
             // Merge rule 1:
             //
             // Any files that have been modified in the given branch since the split point,
@@ -545,7 +554,7 @@ public class Repository {
                 stage.addFile(filename, givenBlobId);
             }
 
-            // Merge rule 7 (规则6已被规则1覆盖):
+            // Merge rule 7 :
             //
             // Any files present at the split point, unmodified in the given branch,
             // and absent in the current branch should remain absent.
@@ -588,6 +597,112 @@ public class Repository {
     }
 
     /**
+     * Saves the given login information under the given remote name.
+     * Attempts to push or pull from the given remote name will then attempt to use this .gitlet directory.
+     * <p>
+     * By writing, e.g., java gitlet.Main add-remote other ../testing/otherdir/.gitlet.
+     * <p>
+     * Always use forward slashes in these commands.
+     * Have your program convert all the forward slashes into the path separator character
+     * (forward slash on Unix and backslash on Windows).
+     */
+    public static void addRemote(String remoteName, String remotePath) {
+        RemoteRepository remoteRepository = readRemotes();
+        remoteRepository.addRemote(remoteName, remotePath);
+        writeRemotes(remoteRepository);
+    }
+
+    /**
+     * Remove information associated with the given remote name.
+     * <p>
+     * The idea here is that if you ever wanted to change a remote that you added,
+     * you would have to first remove it and then re-add it.
+     */
+    public static void rmRemote(String remoteName) {
+        RemoteRepository remoteRepository = readRemotes();
+        remoteRepository.removeRemote(remoteName);
+        writeRemotes(remoteRepository);
+    }
+
+    /**
+     * Attempts to append the current branch’s commits to the end of the given branch at the given remote.
+     * <p>
+     * Details:
+     * This command only works if the remote branch’s head is in the history of the current local head,
+     * which means that the local branch contains some commits in the future of the remote branch.
+     * In this case, append the future commits to the remote branch.
+     * Then, the remote should reset to the front of the appended commits
+     * (so its head will be the same as the local head). This is called fast-forwarding.
+     * <p>
+     * If the Gitlet system on the remote machine exists but does not have the input branch,
+     * then simply add the branch to the remote Gitlet.
+     */
+    public static void push(String remoteName, String remoteBranchName) {
+        RemoteRepository remoteRepo = readRemotes();
+        File remoteGitletDir = remoteRepo.getRemoteGitletDir(remoteName);
+
+        if (!remoteGitletDir.exists()) {
+            abort("Remote directory not found.");
+        }
+
+        String localHead = getCurrentCommitID();
+        String remoteHead = readBranchHead(remoteGitletDir, remoteBranchName);
+
+        if (remoteHead != null && !isAncestor(remoteHead, localHead)) {
+            abort("Please pull down remote changes before pushing.");
+        }
+
+        pushCommits(localHead, remoteHead, remoteGitletDir);
+
+        writeBranchHead(remoteGitletDir, remoteBranchName, localHead);
+    }
+
+    /**
+     * Brings down commits from the remote Gitlet repository into the local Gitlet repository.
+     * <p>
+     * Basically, this copies all commits and blobs
+     * from the given branch in the remote repository (that are not already in the current repository)
+     * into a branch named [remote name]/[remote branch name] in the local .gitlet (just as in real Git),
+     * changing [remote name]/[remote branch name] to point to the head commit
+     * (thus copying the contents of the branch from the remote repository to the current one).
+     * This branch is created in the local repository if it did not previously exist.
+     */
+    public static void fetch(String remoteName, String remoteBranchName) {
+        RemoteRepository remoteRepo = readRemotes();
+        File remoteGitletDir = remoteRepo.getRemoteGitletDir(remoteName);
+
+        if (!remoteGitletDir.exists()) {
+            abort("Remote directory not found.");
+        }
+
+        if (!hasBranchIn(remoteGitletDir, remoteBranchName)) {
+            abort("That remote does not have that branch.");
+        }
+
+        String remoteHead = readBranchHead(remoteGitletDir, remoteBranchName);
+
+        fetchCommits(remoteHead, remoteGitletDir);
+
+        String localRemoteBranchName = remoteName + "/" + remoteBranchName;
+        File localBranchFile = join(HEADS_DIR, localRemoteBranchName);
+        File parentDir = localBranchFile.getParentFile();
+        if (!parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+        writeContents(localBranchFile, remoteHead);
+    }
+
+    /**
+     * Fetches branch [remote name]/[remote branch name] as for the fetch command,
+     * and then merges that fetch into the current branch.
+     */
+    public static void pull(String remoteName, String remoteBranchName) {
+        fetch(remoteName, remoteBranchName);
+        String localRemoteBranchName = remoteName + "/" + remoteBranchName;
+        merge(localRemoteBranchName);
+    }
+
+    /**
      * @return whether the repository is initialized.
      */
     private static boolean isInitialized() {
@@ -618,6 +733,11 @@ public class Repository {
     private static void setupStagingArea() {
         Stage stage = new Stage();
         writeStage(stage);
+    }
+
+    private static void setupRemotes() {
+        RemoteRepository remoteRepository = new RemoteRepository();
+        writeRemotes(remoteRepository);
     }
 
     private static String getCurrentBranch() {
@@ -698,6 +818,17 @@ public class Repository {
         writeObject(STAGE_FILE, stage);
     }
 
+    private static RemoteRepository readRemotes() {
+        if (!REMOTES_FILE.exists()) {
+            return new RemoteRepository();
+        }
+        return readObject(REMOTES_FILE, RemoteRepository.class);
+    }
+
+    private static void writeRemotes(RemoteRepository remoteRepository) {
+        writeObject(REMOTES_FILE, remoteRepository);
+    }
+
     private static void restoreFile(String filename, String blobId) {
         File blobFile = join(BLOB_DIR, blobId);
         Blob blob = readObject(blobFile, Blob.class);
@@ -767,7 +898,7 @@ public class Repository {
     }
 
     /**
-     * A file in the working directory is “modified but not staged” if it is
+     * A file in the working directory is "modified but not staged" if it is
      * <p>
      * <ul>
      *     <li>Tracked in the current commit, changed in the working directory, but not staged</li>
@@ -777,16 +908,92 @@ public class Repository {
      * </ul>
      */
     private static void logNotStageForCommit() {
-        // TODO: implement me.
+        Commit currentCommit = getCurrentCommit();
+        Map<String, String> currentBlobs = currentCommit.getBlobs();
+        Stage stage = readStage();
+        Map<String, String> stagedAdded = stage.getAdded();
+        Set<String> stagedRemoved = stage.getRemoved();
+        List<String> workingFiles = safeListFiles(CWD);
+        Set<String> workingFileSet = new HashSet<>(workingFiles);
+
+        Set<String> modifiedFiles = new TreeSet<>();
+
+        // Case 1: Tracked in current commit, changed in working directory, but not staged
+        for (Map.Entry<String, String> entry : currentBlobs.entrySet()) {
+            String filename = entry.getKey();
+            String blobID = entry.getValue();
+
+            if (workingFileSet.contains(filename)) {
+                File file = join(CWD, filename);
+                byte[] content = readContents(file);
+                String currentBlobID = sha1((Object) content);
+
+                if (!currentBlobID.equals(blobID) && !stagedAdded.containsKey(filename)) {
+                    modifiedFiles.add(filename + " (modified)");
+                }
+            } else {
+                // Case 4: Not staged for removal, but tracked in current commit and deleted from working directory
+                if (!stagedRemoved.contains(filename)) {
+                    modifiedFiles.add(filename + " (deleted)");
+                }
+            }
+        }
+
+        // Case 2: Staged for addition, but with different contents than in working directory
+        // Case 3: Staged for addition, but deleted in the working directory
+        for (Map.Entry<String, String> entry : stagedAdded.entrySet()) {
+            String filename = entry.getKey();
+            String stagedBlobID = entry.getValue();
+
+            if (workingFileSet.contains(filename)) {
+                File file = join(CWD, filename);
+                byte[] content = readContents(file);
+                String currentBlobID = sha1((Object) content);
+
+                if (!currentBlobID.equals(stagedBlobID)) {
+                    modifiedFiles.add(filename + " (modified)");
+                }
+            } else {
+                modifiedFiles.add(filename + " (deleted)");
+            }
+        }
+
+        modifiedFiles.forEach(System.out::println);
     }
 
     /**
      * Untracked file is for files present in the working directory but neither staged for addition nor tracked.
-     * This includes files that have been staged for removal, but then re-created without Gitlet’s knowledge.
+     * This includes files that have been staged for removal, but then re-created without Gitlet's knowledge.
      * Ignore any subdirectories that may have been introduced, since Gitlet does not deal with them.
      */
     private static void logUntrackedFiles() {
-        // TODO: implement me.
+        Commit currentCommit = getCurrentCommit();
+        Map<String, String> currentBlobs = currentCommit.getBlobs();
+        Stage stage = readStage();
+        Map<String, String> stagedAdded = stage.getAdded();
+        Set<String> stagedRemoved = stage.getRemoved();
+        List<String> workingFiles = safeListFiles(CWD);
+
+        Set<String> untrackedFiles = new TreeSet<>();
+
+        for (String filename : workingFiles) {
+            // Ignore .gitlet directory
+            if (filename.startsWith(".gitlet")) {
+                continue;
+            }
+
+            boolean trackedInCommit = currentBlobs.containsKey(filename);
+            boolean stagedForAddition = stagedAdded.containsKey(filename);
+            boolean stagedForRemoval = stagedRemoved.contains(filename);
+
+            // Untracked: not tracked in commit AND not staged for addition
+            // OR staged for removal but re-created
+            if ((!trackedInCommit && !stagedForAddition) || stagedForRemoval) {
+                untrackedFiles.add(filename);
+            }
+        }
+
+        untrackedFiles.forEach(System.out::println);
     }
 
     private static List<String> safeListFiles(File directory) {
@@ -805,7 +1012,7 @@ public class Repository {
         Map<String, Integer> currentDepths = getCommitDepths(currentCommitID);
         Map<String, Integer> givenDepths = getCommitDepths(givenCommitID);
 
-        // 找 depth 最小的共同祖先（最近的）
+        // Find the common ancestor with minimum depth (most recent)
         return currentDepths.keySet().stream()
                 .filter(givenDepths::containsKey)
                 .min(Comparator.comparingInt(currentDepths::get))
@@ -864,5 +1071,172 @@ public class Repository {
         File conflictBlobFile = join(BLOB_DIR, conflictBlob.getBlobID());
         writeObject(conflictBlobFile, conflictBlob);
         stage.addFile(filename, conflictBlob.getBlobID());
+    }
+
+    // ==================== Remote Repository Helper Methods ====================
+
+    /**
+     * Read branch head from specified gitlet directory
+     */
+    private static String readBranchHead(File gitletDir, String branchName) {
+        File branchFile = join(gitletDir, "refs", "heads", branchName);
+        if (!branchFile.exists()) {
+            return null;
+        }
+        return readContentsAsString(branchFile);
+    }
+
+    /**
+     * Write branch head to specified gitlet directory
+     */
+    private static void writeBranchHead(File gitletDir, String branchName, String commitID) {
+        File branchFile = join(gitletDir, "refs", "heads", branchName);
+        writeContents(branchFile, commitID);
+    }
+
+    /**
+     * Read commit from specified gitlet directory
+     */
+    private static Commit readCommitFrom(File gitletDir, String commitID) {
+        File commitFile = join(gitletDir, "objects", "commits", commitID);
+        return readObject(commitFile, Commit.class);
+    }
+
+    /**
+     * Write commit to specified gitlet directory
+     */
+    private static void writeCommitTo(File gitletDir, Commit commit) {
+        File commitFile = join(gitletDir, "objects", "commits", commit.getCommitID());
+        writeObject(commitFile, commit);
+    }
+
+    /**
+     * Read blob from specified gitlet directory
+     */
+    private static Blob readBlobFrom(File gitletDir, String blobID) {
+        File blobFile = join(gitletDir, "objects", "commits", "blobs", blobID);
+        return readObject(blobFile, Blob.class);
+    }
+
+    /**
+     * Write blob to specified gitlet directory
+     */
+    private static void writeBlobTo(File gitletDir, Blob blob) {
+        File blobFile = join(gitletDir, "objects", "commits", "blobs", blob.getBlobID());
+        writeObject(blobFile, blob);
+    }
+
+    /**
+     * Check if specified gitlet directory has a commit
+     */
+    private static boolean hasCommitIn(File gitletDir, String commitID) {
+        File commitFile = join(gitletDir, "objects", "commits", commitID);
+        return commitFile.exists();
+    }
+
+    /**
+     * Check if specified gitlet directory has a blob
+     */
+    private static boolean hasBlobIn(File gitletDir, String blobID) {
+        File blobFile = join(gitletDir, "objects", "commits", "blobs", blobID);
+        return blobFile.exists();
+    }
+
+    /**
+     * Check if specified gitlet directory has a branch
+     */
+    private static boolean hasBranchIn(File gitletDir, String branchName) {
+        File branchFile = join(gitletDir, "refs", "heads", branchName);
+        return branchFile.exists();
+    }
+
+    private static void pushCommits(String localHead, String remoteHead, File remoteGitletDir) {
+        Set<String> visited = new HashSet<>();
+        Queue<String> queue = new LinkedList<>();
+        queue.add(localHead);
+
+        while (!queue.isEmpty()) {
+            String commitID = queue.poll();
+
+            if (visited.contains(commitID)
+                    || (commitID.equals(remoteHead))
+                    || hasCommitIn(remoteGitletDir, commitID)) {
+                continue;
+            }
+            visited.add(commitID);
+
+            // Copy commit
+            Commit commit = getCommitFromID(commitID);
+            writeCommitTo(remoteGitletDir, commit);
+
+            // Copy blobs
+            for (String blobID : commit.getBlobs().values()) {
+                if (!hasBlobIn(remoteGitletDir, blobID)) {
+                    File localBlobFile = join(BLOB_DIR, blobID);
+                    Blob blob = readObject(localBlobFile, Blob.class);
+                    writeBlobTo(remoteGitletDir, blob);
+                }
+            }
+
+            // Add parent nodes
+            if (commit.getParent() != null) {
+                queue.add(commit.getParent());
+            }
+            if (commit.getSecondParent() != null) {
+                queue.add(commit.getSecondParent());
+            }
+        }
+    }
+
+    private static void fetchCommits(String remoteHead, File remoteGitletDir) {
+        Set<String> visited = new HashSet<>();
+        Queue<String> queue = new LinkedList<>();
+        queue.add(remoteHead);
+
+        while (!queue.isEmpty()) {
+            String commitID = queue.poll();
+
+            File localCommitFile = join(COMMIT_DIR, commitID);
+            if (visited.contains(commitID) || localCommitFile.exists()) {
+                continue;
+            }
+            visited.add(commitID);
+
+            // Copy commit
+            Commit commit = readCommitFrom(remoteGitletDir, commitID);
+            writeObject(localCommitFile, commit);
+
+            // Copy blobs
+            for (String blobID : commit.getBlobs().values()) {
+                File localBlobFile = join(BLOB_DIR, blobID);
+                if (!localBlobFile.exists()) {
+                    Blob blob = readBlobFrom(remoteGitletDir, blobID);
+                    writeObject(localBlobFile, blob);
+                }
+            }
+
+            // Add parent nodes
+            if (commit.getParent() != null) {
+                queue.add(commit.getParent());
+            }
+            if (commit.getSecondParent() != null) {
+                queue.add(commit.getSecondParent());
+            }
+        }
+    }
+
+    private static boolean isAncestor(String ancestorID, String descendantID) {
+        Commit current = getCommitFromID(descendantID);
+        while (current != null) {
+            if (current.getCommitID().equals(ancestorID)) {
+                return true;
+            }
+            String parentID = current.getParent();
+            if (parentID == null) {
+                break;
+            }
+            current = getCommitFromID(parentID);
+        }
+        return false;
     }
 }
